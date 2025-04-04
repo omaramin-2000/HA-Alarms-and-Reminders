@@ -1,5 +1,6 @@
 import logging
 import datetime
+import asyncio
 from dateutil import parser
 import voluptuous as vol
 
@@ -53,17 +54,32 @@ async def async_setup(hass: HomeAssistant, config: dict):
             time_str = scheduled_time.strftime("%I:%M %p")
             
             if is_alarm:
-                announcement = f"It's {time_str}. "
+                # Play alarm sound first
+                await hass.services.async_call(
+                    "media_player",
+                    "play_media",
+                    {
+                        "entity_id": satellite,
+                        "media_content_id": "/custom_components/alarms_and_reminders/sounds/alarms/birds.mp3",
+                        "media_content_type": "music"
+                    }
+                )
+                
+                # Wait for sound to finish (adjust timing as needed)
+                await asyncio.sleep(3)
+                
+                # Then do the TTS announcement
                 if message:
-                    announcement += f"Alarm: {message}"
+                    announcement = f"It's {time_str}. {message}"
                 else:
-                    announcement += "Time to wake up!"
+                    announcement = f"It's {time_str}."
             else:
                 if message:
                     announcement = f"Reminder at {time_str}: {message}"
                 else:
                     announcement = f"Reminder notification at {time_str}"
 
+            # Make the announcement
             data = {
                 "satellite": satellite,
                 "message": announcement,

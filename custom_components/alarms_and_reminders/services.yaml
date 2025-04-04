@@ -1,0 +1,25 @@
+set_alarm:
+  description: Set an alarm with a specified datetime, satellite, and message.
+  fields:
+    datetime:
+      description: The time for the alarm.
+      example: "2023-10-01T12:00:00"
+    satellite:
+      description: The satellite ID to announce the alarm on.
+      example: "default_satellite"
+    message:
+      description: The alarm message.
+      example: "Time to wake up!"
+
+set_reminder:
+  description: Set a reminder with a specified datetime, satellite, and message.
+  fields:
+    datetime:
+      description: The time for the reminder.
+      example: "2023-10-01T12:00:00"
+    satellite:
+      description: The satellite ID to announce the reminder on.
+      example: "default_satellite"
+    message:
+      description: The reminder message.
+      example: "Time to take your medication!"
