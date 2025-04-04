@@ -1,0 +1,13 @@
+{
+    "domain": "alarms_and_reminders",
+    "name": "Alarms and Reminders",
+    "description": "Set alarms and reminders to ring in home assistant voice satellite or media player using intents or from the dashboard",
+    "version": "1.0",
+    "documentation": "https://github.com/omaramin-2000/HA-Alarms-and-Reminders?tab=readme-ov-file#",
+    "dependencies": [],
+    "codeowners": ["@omaramin-2000"],
+    "requirements": [
+      "python-dateutil"
+    ]
+  }
+  
