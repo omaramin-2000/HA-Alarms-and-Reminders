@@ -49,6 +49,8 @@ async def _get_satellites(hass: HomeAssistant) -> list:
             for entity_id in hass.states.async_entity_ids("assist_satellite")
         ]
         
+        _LOGGER.debug("Available satellites: %s", satellites)
+        
         if not satellites:
             _LOGGER.warning("No satellites found, functionality may be limited")
         
@@ -101,7 +103,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
             _LOGGER.debug("Media player selected: %s", media_player)
             return media_player
             
-        # If neither provided, try to use first available satellite
+        # If neither provided, try to use the first available satellite
         available_satellites = hass.states.async_entity_ids("assist_satellite")
         if available_satellites:
             _LOGGER.debug("Defaulting to first available satellite: %s", available_satellites[0])
