@@ -18,6 +18,7 @@ from .const import (
     ATTR_REMINDER_ID,
     ATTR_SNOOZE_MINUTES,
     DEFAULT_SATELLITE,
+    DEFAULT_SNOOZE_MINUTES,  # Add this import
 )
 from .coordinator import AlarmAndReminderCoordinator
 from .media_player import MediaHandler
