@@ -44,16 +44,17 @@ REPEAT_OPTIONS = [
 async def _get_satellites(hass: HomeAssistant) -> list:
     """Get list of configured assist satellites."""
     try:
-        # Call assist_pipeline service to get available satellites
-        states = hass.states.async_entity_ids("assist_satellite")
         satellites = []
-        for state in states:
-            # Extract satellite ID from entity_id
-            satellite_id = state.split('.')[1]
-            satellites.append(satellite_id)
+        for entity_id in hass.states.async_entity_ids("assist_satellite"):
+            satellites.append(entity_id.split('.')[1])
+        
+        if not satellites:
+            satellites = ["default_satellite"]
+            _LOGGER.warning("No satellites found, using default_satellite")
+            
         return satellites
     except Exception as err:
-        _LOGGER.warning("Could not get satellites list: %s", err)
+        _LOGGER.warning("Error getting satellites list: %s", err)
         return ["default_satellite"]
 
 PLATFORMS = ["sensor"]
@@ -66,8 +67,8 @@ async def async_setup(hass: HomeAssistant, config: dict):
     
     # Dynamic schema based on available satellites and media players
     SERVICE_SCHEMA = vol.Schema({
-        vol.Exclusive(ATTR_SATELLITE, "target"): vol.In(satellites),
-        vol.Exclusive(ATTR_MEDIA_PLAYER, "target"): cv.entity_id,
+        vol.Optional(ATTR_SATELLITE): vol.In(satellites),  # Changed from Exclusive
+        vol.Optional(ATTR_MEDIA_PLAYER): cv.entity_id,    # Changed from Exclusive
         vol.Required("time"): cv.time,
         vol.Optional("date"): cv.date,
         vol.Optional(ATTR_MESSAGE): cv.string,
@@ -88,13 +89,15 @@ async def async_setup(hass: HomeAssistant, config: dict):
     announcer = Announcer(hass)
     coordinator = AlarmAndReminderCoordinator(hass, media_handler, announcer)
 
-    def validate_target(call: ServiceCall) -> Union[str, None]:
+    def validate_target(call: ServiceCall) -> str:
         """Validate that either satellite or media_player is provided."""
         satellite = call.data.get(ATTR_SATELLITE)
         media_player = call.data.get(ATTR_MEDIA_PLAYER)
         
         if not satellite and not media_player:
-            raise vol.Invalid("Must specify either satellite or media_player")
+            satellite = DEFAULT_SATELLITE
+            _LOGGER.info("No target specified, using default satellite")
+            
         return satellite or media_player
 
     async def async_schedule_alarm(call: ServiceCall):

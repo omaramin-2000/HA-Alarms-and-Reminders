@@ -19,28 +19,17 @@ class MediaHandler:
         self._stop_event = asyncio.Event()
 
     async def play_sound(self, target: str, is_alarm: bool, is_satellite: bool = True, alarm_id: str = None) -> None:
-        """Play the appropriate sound file on either satellite or media player."""
-        sound_file = self.alarm_sound if is_alarm else self.reminder_sound
-        
+        """Play the appropriate sound file."""
         try:
+            sound_file = self.alarm_sound if is_alarm else self.reminder_sound
+            _LOGGER.debug("Playing %s on target %s", sound_file, target)
+
             if is_satellite:
-                # Use satellite's media player
-                satellite_config = await self.hass.services.async_call(
-                    "assist_satellite",
-                    "get_config",
-                    {"satellite": target}
-                )
-                
-                if satellite_config and "media_player" in satellite_config:
-                    target = satellite_config["media_player"]
-                else:
-                    _LOGGER.error("No media player configured for satellite %s", target)
-                    return
+                # For satellites, use the entity_id directly
+                target = f"media_player.{target}"
             else:
-                if not self.media_player:
-                    _LOGGER.error("No media player configured in integration settings")
-                    return
-                target = self.media_player
+                # For media players, use the provided entity_id
+                target = target
 
             # Store alarm info
             if alarm_id:
@@ -54,23 +43,21 @@ class MediaHandler:
             else:
                 stop_event = self._stop_event
 
-            # Start continuous playback
-            while not stop_event.is_set():
-                await self.hass.services.async_call(
-                    "media_player",
-                    "play_media",
-                    {
-                        "entity_id": target,
-                        "media_content_id": sound_file,
-                        "media_content_type": "music"
-                    }
-                )
-                
-                # Wait for sound to finish before playing again
-                await asyncio.sleep(3)  # Adjust based on sound length
-            
+            # Start playback
+            await self.hass.services.async_call(
+                "media_player",
+                "play_media",
+                {
+                    "entity_id": target,
+                    "media_content_id": sound_file,
+                    "media_content_type": "music"
+                },
+                blocking=True
+            )
+            _LOGGER.info("Started playback on %s", target)
+
         except Exception as err:
-            _LOGGER.error("Error playing sound on %s: %s", target, err)
+            _LOGGER.error("Error playing sound on %s: %s", target, err, exc_info=True)
 
     async def stop_alarm(self, alarm_id: str) -> None:
         """Stop a specific alarm."""

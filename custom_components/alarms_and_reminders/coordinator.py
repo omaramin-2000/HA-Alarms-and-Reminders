@@ -91,13 +91,13 @@ class AlarmAndReminderCoordinator:
                 "scheduled_time": scheduled_time.isoformat(),
             })
 
+            # Update sensors
+            self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
+            
+            return item_id
+
         except Exception as err:
-            _LOGGER.error(
-                "Error scheduling %s: %s", 
-                "alarm" if is_alarm else "reminder",
-                err,
-                exc_info=True
-            )
+            _LOGGER.error("Error scheduling: %s", err, exc_info=True)
             raise
 
     async def _trigger_item(self, item_id: str) -> None:
