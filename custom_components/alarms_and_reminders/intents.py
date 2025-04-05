@@ -20,12 +20,19 @@ from .const import (
 
 async def async_setup_intents(hass: HomeAssistant) -> None:
     """Set up the Alarms and Reminders intents."""
+    if hasattr(hass.data, f"{DOMAIN}_intents_registered"):
+        _LOGGER.debug("Intents already registered, skipping setup")
+        return
+
     intent.async_register(hass, SetAlarmIntentHandler())
     intent.async_register(hass, SetReminderIntentHandler())
     intent.async_register(hass, StopAlarmIntentHandler())
     intent.async_register(hass, StopReminderIntentHandler())
     intent.async_register(hass, SnoozeAlarmIntentHandler())
     intent.async_register(hass, SnoozeReminderIntentHandler())
+
+    # Mark intents as registered
+    hass.data[f"{DOMAIN}_intents_registered"] = True
 
 class SetAlarmIntentHandler(intent.IntentHandler):
     """Handle SetAlarm intents."""
