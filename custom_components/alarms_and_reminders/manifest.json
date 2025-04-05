@@ -4,9 +4,11 @@
   "description": "Set alarms and reminders with custom sounds to ring on Home Assistant voice satellites",
   "version": "1.0",
   "documentation": "https://github.com/omaramin-2000/HA-Alarms-and-Reminders",
+  "issue_tracker": "https://github.com/omaramin-2000/HA-Alarms-and-Reminders/issues",
   "dependencies": [],
   "codeowners": ["@omaramin-2000"],
   "config_flow": true,
+  "iot_class": "local_push",
   "requirements": [
       "python-dateutil"
   ]
