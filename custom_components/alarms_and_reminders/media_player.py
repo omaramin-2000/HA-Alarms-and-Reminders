@@ -40,20 +40,11 @@ class MediaHandler:
                     "entity_id": entity_id,
                     "media_content_id": sound_file,
                     "media_content_type": "music",
-                    "announce": is_satellite  # Use announce for satellites
                 },
                 blocking=True
             )
             
-            # Store alarm info for active tracking
-            if alarm_id:
-                self._active_alarms[alarm_id] = {
-                    "target": entity_id,
-                    "is_alarm": is_alarm,
-                    "start_time": datetime.now(),
-                    "stop_event": asyncio.Event()
-                }
-
+            # Log success
             _LOGGER.info("Successfully started playback on %s", entity_id)
 
         except Exception as err:
