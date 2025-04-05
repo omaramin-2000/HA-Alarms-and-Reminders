@@ -1,5 +1,7 @@
 import logging
 import datetime
+import asyncio
+from pathlib import Path
 from dateutil import parser
 import voluptuous as vol
 
@@ -17,6 +19,11 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Define sound file paths
+SOUNDS_DIR = Path(__file__).parent / "sounds"
+ALARM_SOUND = str(SOUNDS_DIR / "alarms" / "birds.mp3")
+REMINDER_SOUND = str(SOUNDS_DIR / "reminders" / "ringtone.mp3")
 
 SERVICE_SCHEMA = vol.Schema({
     vol.Required(ATTR_DATETIME): cv.string,
@@ -52,18 +59,36 @@ async def async_setup(hass: HomeAssistant, config: dict):
             """Action to execute when the alarm/reminder triggers."""
             time_str = scheduled_time.strftime("%I:%M %p")
             
+            # Determine which sound file to play
+            sound_file = ALARM_SOUND if is_alarm else REMINDER_SOUND
+            
+            # Play the appropriate sound first
+            await hass.services.async_call(
+                "media_player",
+                "play_media",
+                {
+                    "entity_id": satellite,
+                    "media_content_id": sound_file,
+                    "media_content_type": "music"
+                }
+            )
+            
+            # Wait for sound to finish
+            await asyncio.sleep(3)  # Adjust this based on sound file length
+            
+            # Prepare the announcement
             if is_alarm:
-                announcement = f"It's {time_str}. "
                 if message:
-                    announcement += f"Alarm: {message}"
+                    announcement = f"It's {time_str}. {message}"
                 else:
-                    announcement += "Time to wake up!"
+                    announcement = f"It's {time_str}."
             else:
                 if message:
                     announcement = f"Reminder at {time_str}: {message}"
                 else:
                     announcement = f"Reminder notification at {time_str}"
 
+            # Make the announcement
             data = {
                 "satellite": satellite,
                 "message": announcement,
