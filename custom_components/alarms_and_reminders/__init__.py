@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Union
 from datetime import time, datetime
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import config_validation as cv
 
@@ -20,6 +20,7 @@ from .const import (
     ATTR_MESSAGE,
     ATTR_REMINDER_ID,
     ATTR_SNOOZE_MINUTES,
+    ATTR_MEDIA_PLAYER,
     DEFAULT_SATELLITE,
     DEFAULT_SNOOZE_MINUTES,
     CONF_MEDIA_PLAYER,
