@@ -28,6 +28,7 @@ from .const import (
 from .coordinator import AlarmAndReminderCoordinator
 from .media_player import MediaHandler
 from .announcer import Announcer
+from .intents import async_setup_intents
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,6 +124,9 @@ async def async_setup(hass: HomeAssistant, config: dict):
             vol.Optional(ATTR_SNOOZE_MINUTES, default=DEFAULT_SNOOZE_MINUTES): cv.positive_int,
         }),
     )
+
+    # Set up intents
+    await async_setup_intents(hass)
 
     return True
 
