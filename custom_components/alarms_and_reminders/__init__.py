@@ -95,13 +95,16 @@ async def async_setup(hass: HomeAssistant, config: dict):
         media_player = call.data.get(ATTR_MEDIA_PLAYER)
         
         if satellite:
+            _LOGGER.debug("Satellite selected: %s", satellite)
             return satellite.split('.')[1]  # Extract satellite ID
         if media_player:
+            _LOGGER.debug("Media player selected: %s", media_player)
             return media_player
             
         # If neither provided, try to use first available satellite
         available_satellites = hass.states.async_entity_ids("assist_satellite")
         if available_satellites:
+            _LOGGER.debug("Defaulting to first available satellite: %s", available_satellites[0])
             return available_satellites[0].split('.')[1]
             
         raise vol.Invalid("No valid target found. Configure a satellite or specify a media player.")
