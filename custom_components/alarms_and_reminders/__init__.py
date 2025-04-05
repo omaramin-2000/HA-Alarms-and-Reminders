@@ -44,9 +44,10 @@ REPEAT_OPTIONS = [
 async def _get_satellites(hass: HomeAssistant) -> list:
     """Get list of configured assist satellites."""
     try:
-        satellites = []
-        for entity_id in hass.states.async_entity_ids("assist_satellite"):
-            satellites.append(entity_id)  # Use full entity_id
+        satellites = [
+            entity_id.split('.')[1]  # Extract satellite ID
+            for entity_id in hass.states.async_entity_ids("assist_satellite")
+        ]
         
         if not satellites:
             _LOGGER.warning("No satellites found, functionality may be limited")
@@ -66,7 +67,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
     
     # Dynamic schema based on available satellites and media players
     SERVICE_SCHEMA = vol.Schema({
-        vol.Exclusive(ATTR_SATELLITE, 'target'): vol.In(satellites),
+        vol.Exclusive(ATTR_SATELLITE, 'target'): vol.In(await _get_satellites(hass)),
         vol.Exclusive(ATTR_MEDIA_PLAYER, 'target'): cv.entity_id,
         vol.Required("time"): cv.time,
         vol.Optional("date"): cv.date,
