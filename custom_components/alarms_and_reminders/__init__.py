@@ -69,8 +69,8 @@ async def async_setup(hass: HomeAssistant, config: dict):
     
     # Dynamic schema based on available satellites and media players
     SERVICE_SCHEMA = vol.Schema({
-        vol.Exclusive(ATTR_SATELLITE, 'target'): vol.In(await _get_satellites(hass)),
-        vol.Exclusive(ATTR_MEDIA_PLAYER, 'target'): cv.entity_id,
+        vol.Optional(ATTR_SATELLITE): cv.entity_id,  # Allow a single satellite
+        vol.Optional(ATTR_MEDIA_PLAYER): vol.All(cv.ensure_list, [cv.entity_id]),  # Allow multiple media players
         vol.Required("time"): cv.time,
         vol.Optional("date"): cv.date,
         vol.Optional(ATTR_MESSAGE): cv.string,
@@ -91,25 +91,16 @@ async def async_setup(hass: HomeAssistant, config: dict):
     announcer = Announcer(hass)
     coordinator = AlarmAndReminderCoordinator(hass, media_handler, announcer)
 
-    def validate_target(call: ServiceCall) -> str:
+    def validate_target(call: ServiceCall) -> dict:
         """Validate that either satellite or media_player is provided."""
         satellite = call.data.get(ATTR_SATELLITE)
-        media_player = call.data.get(ATTR_MEDIA_PLAYER)
-        
-        if satellite:
-            _LOGGER.debug("Satellite selected: %s", satellite)
-            return satellite.split('.')[1]  # Extract satellite ID
-        if media_player:
-            _LOGGER.debug("Media player selected: %s", media_player)
-            return media_player
-            
-        # If neither provided, try to use the first available satellite
-        available_satellites = hass.states.async_entity_ids("assist_satellite")
-        if available_satellites:
-            _LOGGER.debug("Defaulting to first available satellite: %s", available_satellites[0])
-            return available_satellites[0].split('.')[1]
-            
-        raise vol.Invalid("No valid target found. Configure a satellite or specify a media player.")
+        media_players = call.data.get(ATTR_MEDIA_PLAYER, [])
+
+        if not satellite and not media_players:
+            raise vol.Invalid("No valid target found. Configure a satellite or specify one or more media players.")
+
+        _LOGGER.debug("Validated target: satellite=%s, media_players=%s", satellite, media_players)
+        return {"satellite": satellite, "media_players": media_players}
 
     async def async_schedule_alarm(call: ServiceCall):
         """Handle the alarm service call."""
