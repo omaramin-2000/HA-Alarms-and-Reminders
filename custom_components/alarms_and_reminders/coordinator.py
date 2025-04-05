@@ -94,6 +94,8 @@ class AlarmAndReminderCoordinator:
             # Update sensors
             self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
             
+            _LOGGER.debug("Scheduled item: %s", self._active_items[item_id])
+            
             return item_id
 
         except Exception as err:
@@ -108,6 +110,7 @@ class AlarmAndReminderCoordinator:
 
         try:
             item = self._active_items[item_id]
+            _LOGGER.debug("Triggering item: %s", item)
             time_str = item["scheduled_time"].strftime("%I:%M %p")
             
             _LOGGER.info(
