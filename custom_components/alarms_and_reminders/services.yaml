@@ -23,3 +23,39 @@ set_reminder:
     message:
       description: The reminder message.
       example: "Time to take your medication!"
+
+stop_alarm:
+  description: Stop an active alarm or reminder
+  fields:
+    alarm_id:
+      description: ID of the alarm/reminder to stop
+      example: "alarm_123"
+
+snooze_alarm:
+  description: Snooze an active alarm or reminder
+  fields:
+    alarm_id:
+      description: ID of the alarm/reminder to snooze
+      example: "alarm_123"
+    minutes:
+      description: Number of minutes to snooze
+      example: 5
+      default: 5
+
+stop_reminder:
+  description: Stop an active reminder
+  fields:
+    reminder_id:
+      description: ID of the reminder to stop
+      example: "reminder_123"
+
+snooze_reminder:
+  description: Snooze an active reminder
+  fields:
+    reminder_id:
+      description: ID of the reminder to snooze
+      example: "reminder_123"
+    minutes:
+      description: Number of minutes to snooze
+      example: 5
+      default: 5

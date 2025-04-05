@@ -14,6 +14,29 @@ DEFAULT_SENTENCES = {
                     ]
                 }
             ]
+        },
+        "StopAlarm": {
+            "data": [
+                {
+                    "sentences": [
+                        "stop [the] alarm",
+                        "turn off [the] alarm",
+                        "disable [the] alarm",
+                        "cancel [the] alarm"
+                    ]
+                }
+            ]
+        },
+        "SnoozeAlarm": {
+            "data": [
+                {
+                    "sentences": [
+                        "snooze [the] alarm",
+                        "snooze [for] {minutes} minutes",
+                        "give me {minutes} more minutes"
+                    ]
+                }
+            ]
         }
     },
     "lists": {
@@ -69,6 +92,12 @@ DEFAULT_SENTENCES = {
                 "next Friday",
                 "next Saturday",
                 "next Sunday"
+            ]
+        },
+        "minutes": {
+            "type": "number",
+            "range": [
+                {"from": 1, "to": 60}
             ]
         }
     }

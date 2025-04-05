@@ -10,9 +10,13 @@ from .const import (
     DOMAIN,
     SERVICE_SET_ALARM,
     SERVICE_SET_REMINDER,
+    SERVICE_STOP_REMINDER,
+    SERVICE_SNOOZE_REMINDER,
     ATTR_DATETIME,
     ATTR_SATELLITE,
     ATTR_MESSAGE,
+    ATTR_REMINDER_ID,
+    ATTR_SNOOZE_MINUTES,
     DEFAULT_SATELLITE,
 )
 from .coordinator import AlarmAndReminderCoordinator
@@ -53,6 +57,32 @@ async def async_setup(hass: HomeAssistant, config: dict):
         SERVICE_SET_REMINDER,
         lambda call: coordinator.schedule_item(call, is_alarm=False),
         schema=SERVICE_SCHEMA,
+    )
+
+    # Register reminder-specific services
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_STOP_REMINDER,
+        lambda call: coordinator.stop_item(
+            call.data.get(ATTR_REMINDER_ID), is_alarm=False
+        ),
+        schema=vol.Schema({
+            vol.Required(ATTR_REMINDER_ID): cv.string,
+        }),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SNOOZE_REMINDER,
+        lambda call: coordinator.snooze_item(
+            call.data.get(ATTR_REMINDER_ID),
+            call.data.get(ATTR_SNOOZE_MINUTES, DEFAULT_SNOOZE_MINUTES),
+            is_alarm=False
+        ),
+        schema=vol.Schema({
+            vol.Required(ATTR_REMINDER_ID): cv.string,
+            vol.Optional(ATTR_SNOOZE_MINUTES, default=DEFAULT_SNOOZE_MINUTES): cv.positive_int,
+        }),
     )
 
     return True
