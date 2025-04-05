@@ -78,28 +78,48 @@ async def async_setup(hass: HomeAssistant, config: dict):
             raise vol.Invalid("Must specify either satellite or media_player")
         return satellite or media_player
 
+    async def async_schedule_alarm(call: ServiceCall):
+        """Handle the alarm service call."""
+        target = validate_target(call)
+        await coordinator.schedule_item(call, is_alarm=True, target=target)
+
+    async def async_schedule_reminder(call: ServiceCall):
+        """Handle the reminder service call."""
+        target = validate_target(call)
+        await coordinator.schedule_item(call, is_alarm=False, target=target)
+
     # Register services with updated schema
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_ALARM,
-        lambda call: coordinator.schedule_item(call, is_alarm=True, target=validate_target(call)),
+        async_schedule_alarm,  # Changed from lambda
         schema=SERVICE_SCHEMA,
     )
 
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_REMINDER,
-        lambda call: coordinator.schedule_item(call, is_alarm=False, target=validate_target(call)),
+        async_schedule_reminder,  # Changed from lambda
         schema=SERVICE_SCHEMA,
     )
 
     # Register reminder-specific services
+    async def async_stop_reminder(call: ServiceCall):
+        """Handle stop reminder service call."""
+        await coordinator.stop_item(call.data.get(ATTR_REMINDER_ID), is_alarm=False)
+
+    async def async_snooze_reminder(call: ServiceCall):
+        """Handle snooze reminder service call."""
+        await coordinator.snooze_item(
+            call.data.get(ATTR_REMINDER_ID),
+            call.data.get(ATTR_SNOOZE_MINUTES, DEFAULT_SNOOZE_MINUTES),
+            is_alarm=False
+        )
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_STOP_REMINDER,
-        lambda call: coordinator.stop_item(
-            call.data.get(ATTR_REMINDER_ID), is_alarm=False
-        ),
+        async_stop_reminder,  # Changed from lambda
         schema=vol.Schema({
             vol.Required(ATTR_REMINDER_ID): cv.string,
         }),
@@ -108,11 +128,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
     hass.services.async_register(
         DOMAIN,
         SERVICE_SNOOZE_REMINDER,
-        lambda call: coordinator.snooze_item(
-            call.data.get(ATTR_REMINDER_ID),
-            call.data.get(ATTR_SNOOZE_MINUTES, DEFAULT_SNOOZE_MINUTES),
-            is_alarm=False
-        ),
+        async_snooze_reminder,  # Changed from lambda
         schema=vol.Schema({
             vol.Required(ATTR_REMINDER_ID): cv.string,
             vol.Optional(ATTR_SNOOZE_MINUTES, default=DEFAULT_SNOOZE_MINUTES): cv.positive_int,
