@@ -1,25 +1,31 @@
 set_alarm:
-  description: Set an alarm with a specified datetime, satellite, and message.
+  description: Set an alarm with a specified datetime, satellite/media_player, and message.
   fields:
     datetime:
       description: The time for the alarm.
       example: "2023-10-01T12:00:00"
     satellite:
-      description: The satellite ID to announce the alarm on.
+      description: The satellite ID to announce the alarm on (use this or media_player, not both).
       example: "default_satellite"
+    media_player:
+      description: Optional media player entity to play alarm on (if not using satellite).
+      example: "media_player.living_room"
     message:
       description: The alarm message.
       example: "Time to wake up!"
 
 set_reminder:
-  description: Set a reminder with a specified datetime, satellite, and message.
+  description: Set a reminder with a specified datetime, satellite/media_player, and message.
   fields:
     datetime:
       description: The time for the reminder.
       example: "2023-10-01T12:00:00"
     satellite:
-      description: The satellite ID to announce the reminder on.
+      description: The satellite ID to announce the reminder on (use this or media_player, not both).
       example: "default_satellite"
+    media_player:
+      description: Optional media player entity to play reminder on (if not using satellite).
+      example: "media_player.kitchen"
     message:
       description: The reminder message.
       example: "Time to take your medication!"

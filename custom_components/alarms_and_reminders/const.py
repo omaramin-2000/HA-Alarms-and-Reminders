@@ -19,6 +19,7 @@ ATTR_MESSAGE = "message"        # The announcement message (optional)
 ATTR_ALARM_ID = "alarm_id"
 ATTR_SNOOZE_MINUTES = "minutes"
 ATTR_REMINDER_ID = "reminder_id"  # Add this line
+ATTR_MEDIA_PLAYER = "media_player"  # Add this line
 
 # Configuration
 CONF_ALARM_SOUND = "alarm_sound"
