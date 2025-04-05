@@ -46,16 +46,15 @@ async def _get_satellites(hass: HomeAssistant) -> list:
     try:
         satellites = []
         for entity_id in hass.states.async_entity_ids("assist_satellite"):
-            satellites.append(entity_id.split('.')[1])
+            satellites.append(entity_id)  # Use full entity_id
         
         if not satellites:
-            satellites = ["default_satellite"]
-            _LOGGER.warning("No satellites found, using default_satellite")
-            
+            _LOGGER.warning("No satellites found, functionality may be limited")
+        
         return satellites
     except Exception as err:
-        _LOGGER.warning("Error getting satellites list: %s", err)
-        return ["default_satellite"]
+        _LOGGER.error("Error getting satellites list: %s", err)
+        return []
 
 PLATFORMS = ["sensor"]
 
@@ -67,8 +66,8 @@ async def async_setup(hass: HomeAssistant, config: dict):
     
     # Dynamic schema based on available satellites and media players
     SERVICE_SCHEMA = vol.Schema({
-        vol.Optional(ATTR_SATELLITE): vol.In(satellites),  # Changed from Exclusive
-        vol.Optional(ATTR_MEDIA_PLAYER): cv.entity_id,    # Changed from Exclusive
+        vol.Exclusive(ATTR_SATELLITE, 'target'): vol.In(satellites),
+        vol.Exclusive(ATTR_MEDIA_PLAYER, 'target'): cv.entity_id,
         vol.Required("time"): cv.time,
         vol.Optional("date"): cv.date,
         vol.Optional(ATTR_MESSAGE): cv.string,
@@ -94,15 +93,17 @@ async def async_setup(hass: HomeAssistant, config: dict):
         satellite = call.data.get(ATTR_SATELLITE)
         media_player = call.data.get(ATTR_MEDIA_PLAYER)
         
-        # If neither is provided, use default satellite
-        if not satellite and not media_player:
-            _LOGGER.info("No target specified, using default satellite")
-            return "default_satellite"
-        
-        # Return whichever one was provided
         if satellite:
-            return satellite
-        return media_player
+            return satellite.split('.')[1]  # Extract satellite ID
+        if media_player:
+            return media_player
+            
+        # If neither provided, try to use first available satellite
+        available_satellites = hass.states.async_entity_ids("assist_satellite")
+        if available_satellites:
+            return available_satellites[0].split('.')[1]
+            
+        raise vol.Invalid("No valid target found. Configure a satellite or specify a media player.")
 
     async def async_schedule_alarm(call: ServiceCall):
         """Handle the alarm service call."""

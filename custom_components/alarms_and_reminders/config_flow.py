@@ -21,22 +21,20 @@ class AlarmsAndRemindersConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         
         if user_input is not None:
+            # Don't store media_player in initial config
             return self.async_create_entry(
                 title="Alarms and Reminders",
-                data=user_input
+                data={
+                    CONF_ALARM_SOUND: user_input.get(CONF_ALARM_SOUND, DEFAULT_ALARM_SOUND),
+                    CONF_REMINDER_SOUND: user_input.get(CONF_REMINDER_SOUND, DEFAULT_REMINDER_SOUND)
+                }
             )
-
-        # Get list of media players plus "none" option
-        media_players = ["none"]  # Add none option
-        media_player_entities = self.hass.states.async_entity_ids("media_player")
-        media_players.extend(media_player_entities)
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
                 vol.Optional(CONF_ALARM_SOUND, default=DEFAULT_ALARM_SOUND): str,
                 vol.Optional(CONF_REMINDER_SOUND, default=DEFAULT_REMINDER_SOUND): str,
-                vol.Optional(CONF_MEDIA_PLAYER, default="none"): vol.In(media_players),
             }),
             errors=errors
         )
