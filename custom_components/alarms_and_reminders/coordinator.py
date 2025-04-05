@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.util import dt as dt_util
+from .const import DOMAIN  # Add this import at the top
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -83,7 +84,7 @@ class AlarmAndReminderCoordinator:
             )
 
             # Notify state change
-            self.hass.bus.async_fire(f"{self.hass.data['domain']}_state_changed", {
+            self.hass.bus.async_fire(f"{DOMAIN}_state_changed", {
                 "type": "alarm" if is_alarm else "reminder",
                 "action": "scheduled",
                 "item_id": item_id,

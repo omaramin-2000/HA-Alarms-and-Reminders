@@ -155,7 +155,9 @@ async def async_setup(hass: HomeAssistant, config: dict):
     )
 
     # Set up intents
-    await async_setup_intents(hass)
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+        await async_setup_intents(hass)  # Only setup intents once
 
     return True
 
