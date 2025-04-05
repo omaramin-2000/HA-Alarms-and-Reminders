@@ -26,18 +26,17 @@ class AlarmsAndRemindersConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data=user_input
             )
 
-        # Get list of media players
-        media_players = []
+        # Get list of media players plus "none" option
+        media_players = ["none"]  # Add none option
         media_player_entities = self.hass.states.async_entity_ids("media_player")
-        for entity_id in media_player_entities:
-            media_players.append(entity_id)
+        media_players.extend(media_player_entities)
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
                 vol.Optional(CONF_ALARM_SOUND, default=DEFAULT_ALARM_SOUND): str,
                 vol.Optional(CONF_REMINDER_SOUND, default=DEFAULT_REMINDER_SOUND): str,
-                vol.Optional(CONF_MEDIA_PLAYER, default=DEFAULT_MEDIA_PLAYER): vol.In(media_players),
+                vol.Optional(CONF_MEDIA_PLAYER, default="none"): vol.In(media_players),
             }),
             errors=errors
         )
@@ -55,13 +54,15 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         if user_input is not None:
+            # Convert "none" to None
+            if user_input.get(CONF_MEDIA_PLAYER) == "none":
+                user_input[CONF_MEDIA_PLAYER] = None
             return self.async_create_entry(title="", data=user_input)
 
-        # Get list of media players
-        media_players = []
+        # Get list of media players plus "none" option
+        media_players = ["none"]
         media_player_entities = self.hass.states.async_entity_ids("media_player")
-        for entity_id in media_player_entities:
-            media_players.append(entity_id)
+        media_players.extend(media_player_entities)
 
         return self.async_show_form(
             step_id="init",
@@ -80,9 +81,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ): str,
                 vol.Optional(
                     CONF_MEDIA_PLAYER,
-                    default=self.config_entry.options.get(
-                        CONF_MEDIA_PLAYER, DEFAULT_MEDIA_PLAYER
-                    ),
+                    default=self.config_entry.options.get(CONF_MEDIA_PLAYER, "none")
                 ): vol.In(media_players),
             })
         )
