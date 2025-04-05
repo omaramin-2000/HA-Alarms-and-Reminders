@@ -2,6 +2,8 @@
 import logging
 import voluptuous as vol
 from pathlib import Path
+from typing import Union
+from datetime import time, datetime
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
@@ -19,8 +21,8 @@ from .const import (
     ATTR_REMINDER_ID,
     ATTR_SNOOZE_MINUTES,
     DEFAULT_SATELLITE,
-    DEFAULT_SNOOZE_MINUTES,  # Add this import
-    CONF_MEDIA_PLAYER,  # Add this import
+    DEFAULT_SNOOZE_MINUTES,
+    CONF_MEDIA_PLAYER,
 )
 from .coordinator import AlarmAndReminderCoordinator
 from .media_player import MediaHandler
@@ -28,10 +30,31 @@ from .announcer import Announcer
 
 _LOGGER = logging.getLogger(__name__)
 
+TIME_SCHEMA = vol.Schema({
+    vol.Required("hour"): vol.All(int, vol.Range(min=0, max=23)),
+    vol.Required("minute"): vol.All(int, vol.Range(min=0, max=59)),
+})
+
+REPEAT_OPTIONS = [
+    "once",
+    "daily",
+    "weekdays",
+    "weekends",
+    "weekly",
+    "custom"
+]
+
 SERVICE_SCHEMA = vol.Schema({
-    vol.Required(ATTR_DATETIME): cv.string,
-    vol.Optional(ATTR_SATELLITE, default=DEFAULT_SATELLITE): cv.string,
+    vol.Exclusive(ATTR_SATELLITE, "target"): cv.string,
+    vol.Exclusive(ATTR_MEDIA_PLAYER, "target"): cv.entity_id,
+    vol.Required("time"): TIME_SCHEMA,
+    vol.Optional("date"): cv.date,
     vol.Optional(ATTR_MESSAGE): cv.string,
+    vol.Optional("repeat", default="once"): vol.In(REPEAT_OPTIONS),
+    vol.Optional("repeat_days"): vol.All(
+        cv.ensure_list,
+        [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]
+    ),
 })
 
 async def async_setup(hass: HomeAssistant, config: dict):
@@ -47,18 +70,35 @@ async def async_setup(hass: HomeAssistant, config: dict):
     announcer = Announcer(hass)
     coordinator = AlarmAndReminderCoordinator(hass, media_handler, announcer)
 
-    # Register services
+    def validate_target(call: ServiceCall) -> Union[str, None]:
+        """Validate that either satellite or media_player is provided."""
+        satellite = call.data.get(ATTR_SATELLITE)
+        media_player = call.data.get(ATTR_MEDIA_PLAYER)
+        
+        if not satellite and not media_player:
+            raise vol.Invalid("Must specify either satellite or media_player")
+        return satellite or media_player
+
+    # Register services with updated schema
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_ALARM,
-        lambda call: coordinator.schedule_item(call, is_alarm=True),
+        lambda call: coordinator.schedule_item(
+            call,
+            is_alarm=True,
+            target=validate_target(call)
+        ),
         schema=SERVICE_SCHEMA,
     )
 
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_REMINDER,
-        lambda call: coordinator.schedule_item(call, is_alarm=False),
+        lambda call: coordinator.schedule_item(
+            call,
+            is_alarm=False,
+            target=validate_target(call)
+        ),
         schema=SERVICE_SCHEMA,
     )
 
