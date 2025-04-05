@@ -3,6 +3,6 @@
   "content_in_root": false,
   "render_readme": true,
   "domains": ["alarms_and_reminders"],
-  "homeassistant": "2023.8.0",
+  "homeassistant": "2025.4.1",
   "persistent_directory": "custom_components"
 }
