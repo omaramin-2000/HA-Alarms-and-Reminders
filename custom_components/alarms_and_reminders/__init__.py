@@ -49,14 +49,14 @@ async def _get_satellites(hass: HomeAssistant) -> list:
             for entity_id in hass.states.async_entity_ids("assist_satellite")
         ]
         
-        _LOGGER.debug("Available satellites: %s", satellites)
-        
         if not satellites:
             _LOGGER.warning("No satellites found, functionality may be limited")
+            satellites = ["default_satellite"]  # Add a default satellite for testing
         
+        _LOGGER.debug("Available satellites: %s", satellites)
         return satellites
     except Exception as err:
-        _LOGGER.error("Error getting satellites list: %s", err)
+        _LOGGER.error("Error getting satellites list: %s", err, exc_info=True)
         return []
 
 PLATFORMS = ["sensor"]
