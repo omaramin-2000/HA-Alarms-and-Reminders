@@ -1,9 +1,11 @@
 import logging
 import datetime
 import asyncio
+from pathlib import Path
 from dateutil import parser
 import voluptuous as vol
 
+from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers import config_validation as cv
@@ -15,6 +17,10 @@ from .const import (
     ATTR_SATELLITE,
     ATTR_MESSAGE,
     DEFAULT_SATELLITE,
+    CONF_ALARM_SOUND,
+    CONF_REMINDER_SOUND,
+    DEFAULT_ALARM_SOUND,
+    DEFAULT_REMINDER_SOUND,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,8 +31,27 @@ SERVICE_SCHEMA = vol.Schema({
     vol.Optional(ATTR_MESSAGE): cv.string,
 })
 
+async def async_setup_entry(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> bool:
+    """Set up from a config entry."""
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][entry.entry_id] = entry.options
+
+    # Register services
+    await async_setup(hass, entry.options)
+    
+    entry.async_on_unload(entry.add_update_listener(update_listener))
+    return True
+
+async def update_listener(hass: HomeAssistant, entry: config_entries.ConfigEntry) -> None:
+    """Handle options update."""
+    await async_setup(hass, entry.options)
+
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Alarms and Reminders integration."""
+    
+    # Get configured sound files
+    alarm_sound = config.get(CONF_ALARM_SOUND, DEFAULT_ALARM_SOUND)
+    reminder_sound = config.get(CONF_REMINDER_SOUND, DEFAULT_REMINDER_SOUND)
 
     async def handle_schedule(call: ServiceCall, is_alarm: bool) -> None:
         datetime_str = call.data.get(ATTR_DATETIME)
@@ -53,22 +78,25 @@ async def async_setup(hass: HomeAssistant, config: dict):
             """Action to execute when the alarm/reminder triggers."""
             time_str = scheduled_time.strftime("%I:%M %p")
             
+            # Get the appropriate sound file
+            sound_file = alarm_sound if is_alarm else reminder_sound
+            
+            # Play the sound
+            await hass.services.async_call(
+                "media_player",
+                "play_media",
+                {
+                    "entity_id": satellite,
+                    "media_content_id": sound_file,
+                    "media_content_type": "music"
+                }
+            )
+            
+            # Wait for sound to finish
+            await asyncio.sleep(3)  # Adjust based on sound length
+            
+            # Prepare the announcement
             if is_alarm:
-                # Play alarm sound first
-                await hass.services.async_call(
-                    "media_player",
-                    "play_media",
-                    {
-                        "entity_id": satellite,
-                        "media_content_id": "/custom_components/alarms_and_reminders/sounds/alarms/birds.mp3",
-                        "media_content_type": "music"
-                    }
-                )
-                
-                # Wait for sound to finish (adjust timing as needed)
-                await asyncio.sleep(3)
-                
-                # Then do the TTS announcement
                 if message:
                     announcement = f"It's {time_str}. {message}"
                 else:
