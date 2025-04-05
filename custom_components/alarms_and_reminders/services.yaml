@@ -22,6 +22,7 @@ set_alarm:
     time:
       name: Time
       description: The time for the alarm
+      required: true
       selector:
         time: {}
     date:
@@ -34,7 +35,8 @@ set_alarm:
       description: Optional message to announce
       example: "Time to wake up!"
       selector:
-        text: {}
+        text:
+          multiline: false
     repeat:
       name: Repeat
       description: How to repeat the alarm

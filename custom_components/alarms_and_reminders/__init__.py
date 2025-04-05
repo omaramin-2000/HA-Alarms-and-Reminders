@@ -31,11 +31,6 @@ from .announcer import Announcer
 
 _LOGGER = logging.getLogger(__name__)
 
-TIME_SCHEMA = vol.Schema({
-    vol.Required("hour"): vol.All(int, vol.Range(min=0, max=23)),
-    vol.Required("minute"): vol.All(int, vol.Range(min=0, max=59)),
-})
-
 REPEAT_OPTIONS = [
     "once",
     "daily",
@@ -48,7 +43,7 @@ REPEAT_OPTIONS = [
 SERVICE_SCHEMA = vol.Schema({
     vol.Exclusive(ATTR_SATELLITE, "target"): cv.string,
     vol.Exclusive(ATTR_MEDIA_PLAYER, "target"): cv.entity_id,
-    vol.Required("time"): TIME_SCHEMA,
+    vol.Required("time"): cv.time,  # Changed from TIME_SCHEMA to cv.time
     vol.Optional("date"): cv.date,
     vol.Optional(ATTR_MESSAGE): cv.string,
     vol.Optional("repeat", default="once"): vol.In(REPEAT_OPTIONS),
