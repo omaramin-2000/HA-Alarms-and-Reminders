@@ -5,10 +5,10 @@ set_alarm:
     satellite:
       name: Satellite
       description: The satellite to announce the alarm on (mutually exclusive with media_player)
-      example: "default_satellite"
       selector:
-        entity:
-          domain: assist_satellite
+        select:
+          options:
+            - "default_satellite"
     media_player:
       name: Media Player
       description: Media player to play alarm on (mutually exclusive with satellite)

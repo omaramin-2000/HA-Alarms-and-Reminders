@@ -94,11 +94,15 @@ async def async_setup(hass: HomeAssistant, config: dict):
         satellite = call.data.get(ATTR_SATELLITE)
         media_player = call.data.get(ATTR_MEDIA_PLAYER)
         
+        # If neither is provided, use default satellite
         if not satellite and not media_player:
-            satellite = DEFAULT_SATELLITE
             _LOGGER.info("No target specified, using default satellite")
-            
-        return satellite or media_player
+            return "default_satellite"
+        
+        # Return whichever one was provided
+        if satellite:
+            return satellite
+        return media_player
 
     async def async_schedule_alarm(call: ServiceCall):
         """Handle the alarm service call."""

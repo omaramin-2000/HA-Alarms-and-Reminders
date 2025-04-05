@@ -22,42 +22,43 @@ class MediaHandler:
         """Play the appropriate sound file."""
         try:
             sound_file = self.alarm_sound if is_alarm else self.reminder_sound
-            _LOGGER.debug("Playing %s on target %s", sound_file, target)
+            _LOGGER.debug("Playing %s on target %s (is_satellite: %s)", sound_file, target, is_satellite)
 
+            # Determine the full entity_id
             if is_satellite:
-                # For satellites, use the entity_id directly
-                target = f"media_player.{target}"
+                entity_id = f"assist_satellite.{target}"
             else:
-                # For media players, use the provided entity_id
-                target = target
+                entity_id = target  # media_player entity_id is already complete
 
-            # Store alarm info
-            if alarm_id:
-                self._active_alarms[alarm_id] = {
-                    "target": target,
-                    "is_alarm": is_alarm,
-                    "start_time": datetime.now(),
-                    "stop_event": asyncio.Event()
-                }
-                stop_event = self._active_alarms[alarm_id]["stop_event"]
-            else:
-                stop_event = self._stop_event
+            _LOGGER.info("Playing on entity: %s", entity_id)
 
             # Start playback
             await self.hass.services.async_call(
                 "media_player",
                 "play_media",
                 {
-                    "entity_id": target,
+                    "entity_id": entity_id,
                     "media_content_id": sound_file,
-                    "media_content_type": "music"
+                    "media_content_type": "music",
+                    "announce": is_satellite  # Use announce for satellites
                 },
                 blocking=True
             )
-            _LOGGER.info("Started playback on %s", target)
+            
+            # Store alarm info for active tracking
+            if alarm_id:
+                self._active_alarms[alarm_id] = {
+                    "target": entity_id,
+                    "is_alarm": is_alarm,
+                    "start_time": datetime.now(),
+                    "stop_event": asyncio.Event()
+                }
+
+            _LOGGER.info("Successfully started playback on %s", entity_id)
 
         except Exception as err:
             _LOGGER.error("Error playing sound on %s: %s", target, err, exc_info=True)
+            raise
 
     async def stop_alarm(self, alarm_id: str) -> None:
         """Stop a specific alarm."""
