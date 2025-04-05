@@ -19,7 +19,7 @@ class AlarmAndReminderCoordinator:
         self.announcer = announcer
         self._active_items: Dict[str, Dict[str, Any]] = {}
 
-    async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: str) -> None:
+    async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
         """Schedule an alarm or reminder."""
         try:
             _LOGGER.debug("Scheduling %s with data: %s", "alarm" if is_alarm else "reminder", call.data)
@@ -60,7 +60,8 @@ class AlarmAndReminderCoordinator:
             # Store item info
             self._active_items[item_id] = {
                 "scheduled_time": scheduled_time,
-                "target": target,
+                "satellite": target.get("satellite"),
+                "media_players": target.get("media_players", []),
                 "message": message,
                 "is_alarm": is_alarm,
                 "repeat": repeat,
@@ -69,12 +70,13 @@ class AlarmAndReminderCoordinator:
             }
 
             _LOGGER.info(
-                "Scheduled %s '%s' for %s (in %d seconds) on target '%s'",
+                "Scheduled %s '%s' for %s (in %d seconds) on satellite '%s' and media players %s",
                 "alarm" if is_alarm else "reminder",
                 item_id,
                 scheduled_time,
                 delay,
-                target
+                target.get("satellite"),
+                target.get("media_players")
             )
 
             # Schedule the action
