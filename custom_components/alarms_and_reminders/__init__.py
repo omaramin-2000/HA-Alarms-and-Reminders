@@ -80,22 +80,14 @@ async def async_setup(hass: HomeAssistant, config: dict):
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_ALARM,
-        lambda call: coordinator.schedule_item(
-            call,
-            is_alarm=True,
-            target=validate_target(call)
-        ),
+        lambda call: coordinator.schedule_item(call, is_alarm=True, target=validate_target(call)),
         schema=SERVICE_SCHEMA,
     )
 
     hass.services.async_register(
         DOMAIN,
         SERVICE_SET_REMINDER,
-        lambda call: coordinator.schedule_item(
-            call,
-            is_alarm=False,
-            target=validate_target(call)
-        ),
+        lambda call: coordinator.schedule_item(call, is_alarm=False, target=validate_target(call)),
         schema=SERVICE_SCHEMA,
     )
 
