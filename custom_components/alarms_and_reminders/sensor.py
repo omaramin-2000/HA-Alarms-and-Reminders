@@ -7,6 +7,8 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import StateType
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 
@@ -20,74 +22,54 @@ async def async_setup_entry(
     """Set up the sensor platform."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
-        ActiveAlarmsSensor(coordinator),
-        ActiveRemindersSensor(coordinator)
+        ActiveItemsSensor(coordinator, is_alarm=True),
+        ActiveItemsSensor(coordinator, is_alarm=False)
     ])
 
-class ActiveAlarmsSensor(SensorEntity):
-    """Sensor showing active alarms."""
+class ActiveItemsSensor(SensorEntity):
+    """Base class for active items sensors."""
 
-    _attr_has_entity_name = True
-    _attr_name = "Active Alarms"
-    _attr_icon = "mdi:alarm"
-
-    def __init__(self, coordinator):
+    def __init__(self, coordinator, is_alarm: bool):
         """Initialize the sensor."""
         self.coordinator = coordinator
-        self._attr_unique_id = f"{DOMAIN}_active_alarms"
+        self.is_alarm = is_alarm
+        self._attr_unique_id = f"alarms_and_reminders_active_{'alarms' if is_alarm else 'reminders'}"
+        self._attr_name = f"Active {'Alarms' if is_alarm else 'Reminders'}"
+        self._attr_icon = "mdi:alarm" if is_alarm else "mdi:reminder"
+        self._attr_should_poll = False
 
     @property
-    def state(self) -> int:
-        """Return the number of active alarms."""
-        return len([item for item_id, item in self.coordinator._active_items.items() 
-                   if item["is_alarm"]])
+    def state(self) -> StateType:
+        """Return the state of the sensor."""
+        active_count = len([
+            item for item in self.coordinator._active_items.values()
+            if item["is_alarm"] == self.is_alarm and item["status"] in ["scheduled", "active"]
+        ])
+        return active_count
 
     @property
     def extra_state_attributes(self):
-        """Return the state attributes."""
-        alarms = {}
+        """Return entity specific state attributes."""
+        items = {}
+        now = dt_util.now()
+        
         for item_id, item in self.coordinator._active_items.items():
-            if item["is_alarm"]:
-                alarms[item_id] = {
+            if item["is_alarm"] == self.is_alarm:
+                items[item_id] = {
                     "time": item["scheduled_time"].strftime("%I:%M %p"),
+                    "date": item["scheduled_time"].strftime("%Y-%m-%d"),
                     "message": item["message"],
                     "repeat": item["repeat"],
-                    "target": item["target"]
+                    "target": item["target"],
+                    "status": item["status"],
+                    "next_trigger": (item["scheduled_time"] - now).total_seconds()
                 }
+        
         return {
-            "alarms": alarms
+            "items": items,
+            "last_updated": now.isoformat()
         }
 
-class ActiveRemindersSensor(SensorEntity):
-    """Sensor showing active reminders."""
-
-    _attr_has_entity_name = True
-    _attr_name = "Active Reminders"
-    _attr_icon = "mdi:reminder"
-
-    def __init__(self, coordinator):
-        """Initialize the sensor."""
-        self.coordinator = coordinator
-        self._attr_unique_id = f"{DOMAIN}_active_reminders"
-
-    @property
-    def state(self) -> int:
-        """Return the number of active reminders."""
-        return len([item for item_id, item in self.coordinator._active_items.items() 
-                   if not item["is_alarm"]])
-
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        reminders = {}
-        for item_id, item in self.coordinator._active_items.items():
-            if not item["is_alarm"]:
-                reminders[item_id] = {
-                    "time": item["scheduled_time"].strftime("%I:%M %p"),
-                    "message": item["message"],
-                    "repeat": item["repeat"],
-                    "target": item["target"]
-                }
-        return {
-            "reminders": reminders
-        }
+    async def async_update(self) -> None:
+        """Update the sensor."""
+        self.async_write_ha_state()

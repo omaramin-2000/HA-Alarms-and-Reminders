@@ -41,24 +41,43 @@ REPEAT_OPTIONS = [
     "custom"
 ]
 
-SERVICE_SCHEMA = vol.Schema({
-    vol.Exclusive(ATTR_SATELLITE, "target"): cv.string,
-    vol.Exclusive(ATTR_MEDIA_PLAYER, "target"): cv.entity_id,
-    vol.Required("time"): cv.time,  # Changed from TIME_SCHEMA to cv.time
-    vol.Optional("date"): cv.date,
-    vol.Optional(ATTR_MESSAGE): cv.string,
-    vol.Optional("repeat", default="once"): vol.In(REPEAT_OPTIONS),
-    vol.Optional("repeat_days"): vol.All(
-        cv.ensure_list,
-        [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]
-    ),
-})
+async def _get_satellites(hass: HomeAssistant) -> list:
+    """Get list of configured assist satellites."""
+    try:
+        # Call assist_pipeline service to get available satellites
+        states = hass.states.async_entity_ids("assist_satellite")
+        satellites = []
+        for state in states:
+            # Extract satellite ID from entity_id
+            satellite_id = state.split('.')[1]
+            satellites.append(satellite_id)
+        return satellites
+    except Exception as err:
+        _LOGGER.warning("Could not get satellites list: %s", err)
+        return ["default_satellite"]
 
 PLATFORMS = ["sensor"]
 
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Alarms and Reminders integration."""
     
+    # Get available satellites
+    satellites = await _get_satellites(hass)
+    
+    # Dynamic schema based on available satellites and media players
+    SERVICE_SCHEMA = vol.Schema({
+        vol.Exclusive(ATTR_SATELLITE, "target"): vol.In(satellites),
+        vol.Exclusive(ATTR_MEDIA_PLAYER, "target"): cv.entity_id,
+        vol.Required("time"): cv.time,
+        vol.Optional("date"): cv.date,
+        vol.Optional(ATTR_MESSAGE): cv.string,
+        vol.Optional("repeat", default="once"): vol.In(REPEAT_OPTIONS),
+        vol.Optional("repeat_days"): vol.All(
+            cv.ensure_list,
+            [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]
+        ),
+    })
+
     # Initialize components
     sounds_dir = Path(__file__).parent / "sounds"
     media_handler = MediaHandler(

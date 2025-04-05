@@ -7,12 +7,8 @@ set_alarm:
       description: The satellite to announce the alarm on (mutually exclusive with media_player)
       example: "default_satellite"
       selector:
-        select:
-          options:
-            - "default_satellite"
-            - "kitchen"
-            - "bedroom"
-            - "living_room"
+        entity:
+          domain: assist_satellite
     media_player:
       name: Media Player
       description: Media player to play alarm on (mutually exclusive with satellite)
@@ -74,12 +70,8 @@ set_reminder:
       description: The satellite to announce the reminder on (mutually exclusive with media_player)
       example: "default_satellite"
       selector:
-        select:
-          options:
-            - "default_satellite"
-            - "kitchen"
-            - "bedroom"
-            - "living_room"
+        entity:
+          domain: assist_satellite
     media_player:
       name: Media Player
       description: Media player to play reminder on (mutually exclusive with satellite)

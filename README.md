@@ -1,8 +1,11 @@
-# Home Assistant Alarms and Reminders
+# Home Assistant Alarms and Reminders (Beta)
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+![beta_badge](https://img.shields.io/badge/Status-Beta-orange.svg)
 
 A Home Assistant integration that allows you to set alarms and reminders that will ring on your Home Assistant voice satellites or media players.
+
+> ⚠️ **Beta Status**: This integration is currently in beta and under active development. Features may change and bugs are expected. Please report any issues on the GitHub issue tracker.
 
 ## Features
 
@@ -12,6 +15,20 @@ A Home Assistant integration that allows you to set alarms and reminders that wi
 - Optional media player support
 - Snooze and stop functionality
 - Dashboard controls
+
+## Known Limitations
+- Limited error handling
+- Basic dashboard controls
+- Repeat functionality in development
+- Some edge cases not fully tested
+
+## Development Status
+This integration is actively being developed. Future updates will include:
+- Enhanced repeat functionality
+- More robust error handling
+- Additional configuration options
+- Improved dashboard controls
+- Better state management
 
 ## Installation
 
