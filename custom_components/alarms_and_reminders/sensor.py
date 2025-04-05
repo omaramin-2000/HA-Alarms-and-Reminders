@@ -45,6 +45,7 @@ class ActiveItemsSensor(SensorEntity):
             item for item in self.coordinator._active_items.values()
             if item["is_alarm"] == self.is_alarm and item["status"] in ["scheduled", "active"]
         ])
+        _LOGGER.debug("Sensor state for %s: %d active items", "alarms" if self.is_alarm else "reminders", active_count)
         return active_count
 
     @property
@@ -65,6 +66,7 @@ class ActiveItemsSensor(SensorEntity):
                     "next_trigger": (item["scheduled_time"] - now).total_seconds()
                 }
         
+        _LOGGER.debug("Sensor attributes for %s: %s", "alarms" if self.is_alarm else "reminders", items)
         return {
             "items": items,
             "last_updated": now.isoformat()
