@@ -49,25 +49,22 @@ class SetAlarmIntentHandler(intent.IntentHandler):
         slots = self.async_validate_slots(intent_obj.slots)
         
         datetime_str = slots["datetime"]["value"]
-        message = slots.get("message", {}).get("value")
+        message = slots.get("message", {}).get("value", "")
         satellite = intent_obj.context.id  # Get the satellite that received the command
 
         await hass.services.async_call(
             DOMAIN,
             SERVICE_SET_ALARM,
             {
-                "datetime": datetime_str,
+                "time": datetime_str.split("T")[1],
+                "date": datetime_str.split("T")[0],
                 "satellite": satellite,
                 "message": message
             },
         )
 
-        speech = f"Alarm set for {datetime_str}"
-        if message:
-            speech += f" with message: {message}"
-
         response = intent_obj.create_response()
-        response.async_set_speech(speech)
+        response.async_set_speech(f"Alarm set for {datetime_str}")
         return response
 
 class SetReminderIntentHandler(intent.IntentHandler):
