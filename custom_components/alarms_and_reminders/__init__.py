@@ -29,6 +29,7 @@ from .coordinator import AlarmAndReminderCoordinator
 from .media_player import MediaHandler
 from .announcer import Announcer
 from .intents import async_setup_intents
+from .sensor import async_setup_entry as async_setup_sensor_entry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -194,10 +195,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up services
     await async_setup(hass, entry.data)
 
-    # Set up platforms explicitly
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, "sensor")
-    )
+    # Set up the sensor platform explicitly
+    await async_setup_sensor_entry(hass, entry, hass.data[DOMAIN][entry.entry_id].async_add_entities)
 
     entry.async_on_unload(entry.add_update_listener(update_listener))
     return True
