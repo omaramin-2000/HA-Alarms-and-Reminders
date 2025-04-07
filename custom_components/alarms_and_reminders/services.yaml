@@ -156,3 +156,34 @@ snooze_reminder:
       description: Number of minutes to snooze
       example: 5
       default: 5
+
+stop:
+  name: Stop
+  description: Stop an active alarm or reminder
+  target:
+    entity:
+      domain: alarms_and_reminders
+
+snooze:
+  name: Snooze
+  description: Snooze an active alarm or reminder
+  target:
+    entity:
+      domain: alarms_and_reminders
+  fields:
+    minutes:
+      name: Minutes
+      description: Number of minutes to snooze
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+
+delete:
+  name: Delete
+  description: Delete an alarm or reminder
+  target:
+    entity:
+      domain: alarms_and_reminders
