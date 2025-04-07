@@ -90,7 +90,9 @@ class AlarmAndReminderCoordinator:
 
             entity = AlarmReminderEntity(self.hass, item_id, self._active_items[item_id])
             self.hass.data[DOMAIN]["entities"].append(entity)
-            self.hass.helpers.entity_platform.async_add_entities([entity])
+
+            if self.async_add_entities:
+                self.async_add_entities([entity])  # Use the callback to add the entity
 
             _LOGGER.info(
                 "Scheduled %s '%s' for %s (in %d seconds) on satellite '%s' and media players %s",
