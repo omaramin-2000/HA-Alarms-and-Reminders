@@ -6,6 +6,7 @@ from typing import Dict, Any
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN  # Add this import at the top
+from .entity import AlarmReminderEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,6 +69,26 @@ class AlarmAndReminderCoordinator:
                 "repeat_days": repeat_days,
                 "status": "scheduled"
             }
+
+            # Create entity for the alarm/reminder
+            self.hass.states.async_set(
+                f"{DOMAIN}.{item_id}",
+                "scheduled",
+                {
+                    "scheduled_time": scheduled_time.isoformat(),
+                    "satellite": target.get("satellite"),
+                    "media_players": target.get("media_players"),
+                    "message": message,
+                    "is_alarm": is_alarm,
+                    "repeat": repeat,
+                    "repeat_days": repeat_days,
+                    "status": "scheduled",
+                }
+            )
+
+            entity = AlarmReminderEntity(self.hass, item_id, self._active_items[item_id])
+            self.hass.data[DOMAIN]["entities"].append(entity)
+            self.hass.helpers.entity_platform.async_add_entities([entity])
 
             _LOGGER.info(
                 "Scheduled %s '%s' for %s (in %d seconds) on satellite '%s' and media players %s",
