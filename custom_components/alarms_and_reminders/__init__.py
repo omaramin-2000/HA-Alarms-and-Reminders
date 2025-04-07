@@ -195,12 +195,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up services
     await async_setup(hass, entry.data)
 
-    # Set up the sensor platform explicitly
-    await async_setup_sensor_entry(hass, entry, hass.data[DOMAIN][entry.entry_id].async_add_entities)
-
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, "sensor")
-    )
+    # Forward the entry setup to platforms
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     entry.async_on_unload(entry.add_update_listener(update_listener))
     return True
