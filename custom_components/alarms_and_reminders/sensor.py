@@ -20,19 +20,18 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the sensor platform."""
-    if "sensor_setup_done" in hass.data[DOMAIN]:
-        _LOGGER.warning("Sensor platform already set up. Skipping.")
-        return
-
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    coordinator.async_add_entities = async_add_entities  # Pass the callback to the coordinator
-
-    async_add_entities([
+    
+    # Create and add sensor entities
+    entities = [
         ActiveItemsSensor(coordinator, is_alarm=True),
         ActiveItemsSensor(coordinator, is_alarm=False)
-    ])
+    ]
+    
+    async_add_entities(entities)
 
-    hass.data[DOMAIN]["sensor_setup_done"] = True
+    # Store the async_add_entities callback for future dynamic entity creation
+    coordinator.async_add_entities = async_add_entities
 
 class ActiveItemsSensor(SensorEntity):
     """Base class for active items sensors."""
