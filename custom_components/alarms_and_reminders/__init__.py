@@ -1,211 +1,192 @@
-"""The Alarms and Reminders integration."""
+"""Coordinator for scheduling alarms and reminders."""
+import datetime
 import logging
-import voluptuous as vol
-from pathlib import Path
-from typing import Union
-from datetime import time, datetime
+from typing import Dict, Any
 
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers import config_validation as cv
-
-from .const import (
-    DOMAIN,
-    SERVICE_SET_ALARM,
-    SERVICE_SET_REMINDER,
-    SERVICE_STOP_REMINDER,
-    SERVICE_SNOOZE_REMINDER,
-    ATTR_DATETIME,
-    ATTR_SATELLITE,
-    ATTR_MESSAGE,
-    ATTR_REMINDER_ID,
-    ATTR_SNOOZE_MINUTES,
-    ATTR_MEDIA_PLAYER,
-    DEFAULT_SATELLITE,
-    DEFAULT_SNOOZE_MINUTES,
-    CONF_MEDIA_PLAYER,
-)
-from .coordinator import AlarmAndReminderCoordinator
-from .media_player import MediaHandler
-from .announcer import Announcer
-from .intents import async_setup_intents
+from homeassistant.util import dt as dt_util
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from .const import DOMAIN  # Add this import at the top
+from .entity import AlarmReminderEntity
 
 _LOGGER = logging.getLogger(__name__)
 
-REPEAT_OPTIONS = [
-    "once",
-    "daily",
-    "weekdays",
-    "weekends",
-    "weekly",
-    "custom"
-]
-
-async def _get_satellites(hass: HomeAssistant) -> list:
-    """Get list of configured assist satellites."""
-    try:
-        satellites = [
-            entity_id.split('.')[1]  # Extract satellite ID
-            for entity_id in hass.states.async_entity_ids("assist_satellite")
-        ]
-        
-        if not satellites:
-            _LOGGER.warning("No satellites found, functionality may be limited")
-            satellites = ["default_satellite"]  # Add a default satellite for testing
-        
-        _LOGGER.debug("Available satellites: %s", satellites)
-        return satellites
-    except Exception as err:
-        _LOGGER.error("Error getting satellites list: %s", err, exc_info=True)
-        return []
-
-PLATFORMS = ["sensor"]
-
-async def async_setup(hass: HomeAssistant, config: dict):
-    """Set up the Alarms and Reminders integration."""
+class AlarmAndReminderCoordinator:
+    """Coordinates scheduling of alarms and reminders."""
     
-    # Initialize the DOMAIN data structure
-    if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {"entities": []}  # Initialize the entities list
+    def __init__(self, hass: HomeAssistant, media_handler, announcer):
+        """Initialize coordinator."""
+        self.hass = hass
+        self.media_handler = media_handler
+        self.announcer = announcer
+        self._active_items: Dict[str, Dict[str, Any]] = {}
+        self.async_add_entities = None  # Callback for adding entities
 
-    # Get available satellites
-    satellites = await _get_satellites(hass)
-    
-    # Dynamic schema based on available satellites and media players
-    SERVICE_SCHEMA = vol.Schema({
-        vol.Optional(ATTR_SATELLITE): cv.entity_id,  # Allow a single satellite
-        vol.Optional(ATTR_MEDIA_PLAYER): vol.All(cv.ensure_list, [cv.entity_id]),  # Allow multiple media players
-        vol.Required("time"): cv.time,
-        vol.Optional("date"): cv.date,
-        vol.Optional(ATTR_MESSAGE): cv.string,
-        vol.Optional("repeat", default="once"): vol.In(REPEAT_OPTIONS),
-        vol.Optional("repeat_days"): vol.All(
-            cv.ensure_list,
-            [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]
-        ),
-    })
+    async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
+        """Schedule an alarm or reminder."""
+        try:
+            _LOGGER.debug("Scheduling %s with data: %s", "alarm" if is_alarm else "reminder", call.data)
+            
+            time_input = call.data.get("time")
+            date_input = call.data.get("date")
+            message = call.data.get("message", "")
+            repeat = call.data.get("repeat", "once")
+            repeat_days = call.data.get("repeat_days", [])
 
-    # Initialize components
-    sounds_dir = Path(__file__).parent / "sounds"
-    media_handler = MediaHandler(
-        hass,
-        str(sounds_dir / "alarms" / "birds.mp3"),
-        str(sounds_dir / "reminders" / "ringtone.mp3")
-    )
-    announcer = Announcer(hass)
-    coordinator = AlarmAndReminderCoordinator(hass, media_handler, announcer)
+            # Convert time input to datetime
+            now = dt_util.now()
+            if isinstance(time_input, str):
+                try:
+                    hour, minute = map(int, time_input.split(':'))
+                    time_input = datetime.time(hour, minute)
+                except ValueError as err:
+                    _LOGGER.error("Invalid time format: %s", err)
+                    return
 
-    # Store coordinator for future access
-    hass.data[DOMAIN]["coordinator"] = coordinator
+            if date_input:
+                scheduled_time = datetime.datetime.combine(date_input, time_input)
+                scheduled_time = dt_util.as_local(scheduled_time)
+            else:
+                scheduled_time = datetime.datetime.combine(now.date(), time_input)
+                scheduled_time = dt_util.as_local(scheduled_time)
+                if scheduled_time < now:
+                    scheduled_time = scheduled_time + datetime.timedelta(days=1)
 
-    def validate_target(call: ServiceCall) -> dict:
-        """Validate that either satellite or media_player is provided."""
-        satellite = call.data.get(ATTR_SATELLITE)
-        media_players = call.data.get(ATTR_MEDIA_PLAYER, [])
+            delay = (scheduled_time - now).total_seconds()
+            if delay < 0:
+                _LOGGER.warning("Scheduled time %s is in the past. Ignoring request.", scheduled_time)
+                return
 
-        if not satellite and not media_players:
-            raise vol.Invalid("No valid target found. Configure a satellite or specify one or more media players.")
+            # Generate unique ID
+            item_id = f"{'alarm' if is_alarm else 'reminder'}_{now.strftime('%Y%m%d%H%M%S')}"
+            
+            # Store item info
+            self._active_items[item_id] = {
+                "scheduled_time": scheduled_time,
+                "satellite": target.get("satellite"),
+                "media_players": target.get("media_players", []),
+                "message": message,
+                "is_alarm": is_alarm,
+                "repeat": repeat,
+                "repeat_days": repeat_days,
+                "status": "scheduled"
+            }
 
-        _LOGGER.debug("Validated target: satellite=%s, media_players=%s", satellite, media_players)
-        return {"satellite": satellite, "media_players": media_players}
+            # Create entity for the alarm/reminder
+            self.hass.states.async_set(
+                f"{DOMAIN}.{item_id}",
+                "scheduled",
+                {
+                    "scheduled_time": scheduled_time.isoformat(),
+                    "satellite": target.get("satellite"),
+                    "media_players": target.get("media_players"),
+                    "message": message,
+                    "is_alarm": is_alarm,
+                    "repeat": repeat,
+                    "repeat_days": repeat_days,
+                    "status": "scheduled",
+                }
+            )
 
-    async def async_schedule_alarm(call: ServiceCall):
-        """Handle the alarm service call."""
-        target = validate_target(call)
-        await coordinator.schedule_item(call, is_alarm=True, target=target)
+            entity = AlarmReminderEntity(self.hass, item_id, self._active_items[item_id])
+            self.hass.data[DOMAIN]["entities"].append(entity)
+            self.hass.helpers.entity_platform.async_add_entities([entity])
 
-    async def async_schedule_reminder(call: ServiceCall):
-        """Handle the reminder service call."""
-        target = validate_target(call)
-        await coordinator.schedule_item(call, is_alarm=False, target=target)
+            _LOGGER.info(
+                "Scheduled %s '%s' for %s (in %d seconds) on satellite '%s' and media players %s",
+                "alarm" if is_alarm else "reminder",
+                item_id,
+                scheduled_time,
+                delay,
+                target.get("satellite"),
+                target.get("media_players")
+            )
 
-    # Register services with updated schema
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_ALARM,
-        async_schedule_alarm,  # Changed from lambda
-        schema=SERVICE_SCHEMA,
-    )
+            # Schedule the action
+            self.hass.loop.call_later(
+                delay,
+                lambda: self.hass.async_create_task(self._trigger_item(item_id))
+            )
 
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SET_REMINDER,
-        async_schedule_reminder,  # Changed from lambda
-        schema=SERVICE_SCHEMA,
-    )
+            # Notify state change
+            self.hass.bus.async_fire(f"{DOMAIN}_state_changed", {
+                "type": "alarm" if is_alarm else "reminder",
+                "action": "scheduled",
+                "item_id": item_id,
+                "scheduled_time": scheduled_time.isoformat(),
+            })
 
-    # Register reminder-specific services
-    async def async_stop_reminder(call: ServiceCall):
-        """Handle stop reminder service call."""
-        await coordinator.stop_item(call.data.get(ATTR_REMINDER_ID), is_alarm=False)
+            # Update sensors
+            self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
+            
+            _LOGGER.debug("Scheduled item: %s", self._active_items[item_id])
+            
+            return item_id
 
-    async def async_snooze_reminder(call: ServiceCall):
-        """Handle snooze reminder service call."""
-        await coordinator.snooze_item(
-            call.data.get(ATTR_REMINDER_ID),
-            call.data.get(ATTR_SNOOZE_MINUTES, DEFAULT_SNOOZE_MINUTES),
-            is_alarm=False
-        )
+        except Exception as err:
+            _LOGGER.error("Error scheduling: %s", err, exc_info=True)
+            raise
 
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_STOP_REMINDER,
-        async_stop_reminder,  # Changed from lambda
-        schema=vol.Schema({
-            vol.Required(ATTR_REMINDER_ID): cv.string,
-        }),
-    )
+    async def _trigger_item(self, item_id: str) -> None:
+        """Trigger the scheduled item."""
+        if item_id not in self._active_items:
+            _LOGGER.warning("Item %s not found in active items", item_id)
+            return
 
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_SNOOZE_REMINDER,
-        async_snooze_reminder,  # Changed from lambda
-        schema=vol.Schema({
-            vol.Required(ATTR_REMINDER_ID): cv.string,
-            vol.Optional(ATTR_SNOOZE_MINUTES, default=DEFAULT_SNOOZE_MINUTES): cv.positive_int,
-        }),
-    )
+        try:
+            item = self._active_items[item_id]
+            _LOGGER.debug("Triggering item: %s", item)
+            time_str = item["scheduled_time"].strftime("%I:%M %p")
+            
+            _LOGGER.info(
+                "Triggering %s '%s' scheduled for %s on target '%s'",
+                "alarm" if item["is_alarm"] else "reminder",
+                item_id,
+                time_str,
+                item["target"]
+            )
 
-    # Set up intents
-    if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {}
-        await async_setup_intents(hass)  # Only setup intents once
+            item["status"] = "active"
+            
+            # Play sound and make announcement
+            await self.media_handler.play_sound(
+                item["target"],
+                item["is_alarm"],
+                is_satellite="satellite" in item["target"],
+                alarm_id=item_id
+            )
+            
+            if "satellite" in item["target"]:
+                await self.announcer.make_announcement(
+                    item["target"],
+                    time_str,
+                    item["message"],
+                    item["is_alarm"]
+                )
 
-    return True
+            # Handle repeat logic
+            if item["repeat"] != "once":
+                await self._schedule_next_occurrence(item_id)
+            else:
+                item["status"] = "completed"
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Alarms and Reminders from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
+        except Exception as err:
+            _LOGGER.error("Error triggering item %s: %s", item_id, err, exc_info=True)
+            item["status"] = "error"
+            raise
 
-    # Initialize components
-    sounds_dir = Path(__file__).parent / "sounds"
-    media_handler = MediaHandler(
-        hass,
-        str(sounds_dir / "alarms" / "birds.mp3"),
-        str(sounds_dir / "reminders" / "ringtone.mp3"),
-        entry.options.get(CONF_MEDIA_PLAYER)  # Get media player from config
-    )
-    announcer = Announcer(hass)
-    coordinator = AlarmAndReminderCoordinator(hass, media_handler, announcer)
+    async def _schedule_next_occurrence(self, item_id: str) -> None:
+        """Schedule the next occurrence of a repeating item."""
+        # Implementation for repeat logic
+        pass  # We'll implement this later
 
-    # Store coordinator for future access
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    async def stop_item(self, item_id: str, is_alarm: bool) -> None:
+        """Stop an active item."""
+        if item_id in self._active_items:
+            await self.media_handler.stop_alarm(item_id)
+            del self._active_items[item_id]
 
-    # Set up services
-    await async_setup(hass, entry.data)
-
-    # Set up platforms
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    entry.async_on_unload(entry.add_update_listener(update_listener))
-    return True
-
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, []):
-        hass.data[DOMAIN].pop(entry.entry_id)
-    return unload_ok
-
-async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Update listener."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    async def snooze_item(self, item_id: str, minutes: int, is_alarm: bool) -> None:
+        """Snooze an active item."""
+        if item_id in self._active_items:
+            await self.media_handler.snooze_alarm(item_id, minutes)
