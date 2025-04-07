@@ -25,6 +25,8 @@ async def async_setup_entry(
         return
 
     coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator.async_add_entities = async_add_entities  # Pass the callback to the coordinator
+
     async_add_entities([
         ActiveItemsSensor(coordinator, is_alarm=True),
         ActiveItemsSensor(coordinator, is_alarm=False)
@@ -80,3 +82,33 @@ class ActiveItemsSensor(SensorEntity):
     async def async_update(self) -> None:
         """Update the sensor."""
         self.async_write_ha_state()
+
+    async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
+        """Schedule an alarm or reminder."""
+        try:
+            _LOGGER.debug("Scheduling %s with data: %s", "alarm" if is_alarm else "reminder", call.data)
+            
+            # ...existing code...
+
+            # Create entity for the alarm/reminder
+            entity = AlarmReminderEntity(self.hass, item_id, self._active_items[item_id])
+            self.hass.data[DOMAIN]["entities"].append(entity)
+
+            if self.async_add_entities:
+                self.async_add_entities([entity])  # Use the callback to add the entity
+
+            _LOGGER.info(
+                "Scheduled %s '%s' for %s (in %d seconds) on satellite '%s' and media players %s",
+                "alarm" if is_alarm else "reminder",
+                item_id,
+                scheduled_time,
+                delay,
+                target.get("satellite"),
+                target.get("media_players")
+            )
+
+            # ...existing code...
+
+        except Exception as err:
+            _LOGGER.error("Error scheduling: %s", err, exc_info=True)
+            raise
