@@ -64,6 +64,10 @@ PLATFORMS = ["sensor"]
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Alarms and Reminders integration."""
     
+    # Initialize the DOMAIN data structure
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {"entities": []}  # Initialize the entities list
+
     # Get available satellites
     satellites = await _get_satellites(hass)
     
@@ -90,6 +94,9 @@ async def async_setup(hass: HomeAssistant, config: dict):
     )
     announcer = Announcer(hass)
     coordinator = AlarmAndReminderCoordinator(hass, media_handler, announcer)
+
+    # Store coordinator for future access
+    hass.data[DOMAIN]["coordinator"] = coordinator
 
     def validate_target(call: ServiceCall) -> dict:
         """Validate that either satellite or media_player is provided."""
