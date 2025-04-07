@@ -1,4 +1,6 @@
 from homeassistant.helpers.entity import Entity
+from homeassistant.const import ATTR_NAME
+from homeassistant.helpers import entity_platform
 
 class AlarmReminderEntity(Entity):
     """Representation of an Alarm or Reminder."""
@@ -10,6 +12,47 @@ class AlarmReminderEntity(Entity):
         self.data = data
         self._attr_name = data.get("name", item_id)
         self._attr_unique_id = item_id
+        self._attr_should_poll = False
+
+    async def async_added_to_hass(self):
+        """Run when entity is added to registry."""
+        platform = entity_platform.async_get_current_platform()
+        
+        # Register entity services
+        platform.async_register_entity_service(
+            "stop",
+            {},
+            "async_stop"
+        )
+        
+        platform.async_register_entity_service(
+            "snooze",
+            {
+                vol.Optional("minutes", default=5): int,
+            },
+            "async_snooze"
+        )
+        
+        platform.async_register_entity_service(
+            "delete",
+            {},
+            "async_delete"
+        )
+
+    async def async_stop(self):
+        """Stop the alarm/reminder."""
+        coordinator = self.hass.data[DOMAIN]["coordinator"]
+        await coordinator.stop_item(self.item_id, self.data["is_alarm"])
+
+    async def async_snooze(self, minutes: int = 5):
+        """Snooze the alarm/reminder."""
+        coordinator = self.hass.data[DOMAIN]["coordinator"]
+        await coordinator.snooze_item(self.item_id, minutes, self.data["is_alarm"])
+
+    async def async_delete(self):
+        """Delete the alarm/reminder."""
+        coordinator = self.hass.data[DOMAIN]["coordinator"]
+        await coordinator.delete_item(self.item_id)
 
     @property
     def name(self):
