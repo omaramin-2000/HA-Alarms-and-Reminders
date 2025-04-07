@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.util import dt as dt_util
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import DOMAIN  # Add this import at the top
 from .entity import AlarmReminderEntity
 
@@ -19,6 +20,7 @@ class AlarmAndReminderCoordinator:
         self.media_handler = media_handler
         self.announcer = announcer
         self._active_items: Dict[str, Dict[str, Any]] = {}
+        self.async_add_entities = None  # Callback for adding entities
 
     async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
         """Schedule an alarm or reminder."""
