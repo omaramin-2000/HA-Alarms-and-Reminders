@@ -20,7 +20,7 @@ class AlarmAndReminderCoordinator:
         self.media_handler = media_handler
         self.announcer = announcer
         self._active_items: Dict[str, Dict[str, Any]] = {}
-        self.async_add_entities = None  # Callback for adding entities
+        self.async_add_entities = None  # Will be set during platform setup
 
     async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
         """Schedule an alarm or reminder."""
@@ -91,8 +91,9 @@ class AlarmAndReminderCoordinator:
             entity = AlarmReminderEntity(self.hass, item_id, self._active_items[item_id])
             self.hass.data[DOMAIN]["entities"].append(entity)
 
-            if self.async_add_entities:
-                self.async_add_entities([entity])  # Use the callback to add the entity
+            # Add entity using the callback if available
+            if self.async_add_entities is not None:
+                self.async_add_entities([entity])
 
             _LOGGER.info(
                 "Scheduled %s '%s' for %s (in %d seconds) on satellite '%s' and media players %s",
