@@ -20,11 +20,17 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the sensor platform."""
+    if "sensor_setup_done" in hass.data[DOMAIN]:
+        _LOGGER.warning("Sensor platform already set up. Skipping.")
+        return
+
     coordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
         ActiveItemsSensor(coordinator, is_alarm=True),
         ActiveItemsSensor(coordinator, is_alarm=False)
     ])
+
+    hass.data[DOMAIN]["sensor_setup_done"] = True
 
 class ActiveItemsSensor(SensorEntity):
     """Base class for active items sensors."""
@@ -41,8 +47,9 @@ class ActiveItemsSensor(SensorEntity):
     @property
     def state(self) -> StateType:
         """Return the state of the sensor."""
+        entities = self.hass.data[DOMAIN].get("entities", [])
         return len([
-            entity for entity in self.hass.data[DOMAIN]["entities"]
+            entity for entity in entities
             if entity.data["is_alarm"] == self.is_alarm and entity.state in ["scheduled", "active"]
         ])
 
