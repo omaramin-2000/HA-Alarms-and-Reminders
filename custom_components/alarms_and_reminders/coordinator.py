@@ -2,6 +2,8 @@
 import datetime
 import logging
 from typing import Dict, Any
+import asyncio
+from datetime import datetime, timedelta
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.util import dt as dt_util
@@ -142,60 +144,154 @@ class AlarmAndReminderCoordinator:
     async def _trigger_item(self, item_id: str) -> None:
         """Trigger the scheduled item."""
         if item_id not in self._active_items:
-            _LOGGER.warning("Item %s not found in active items", item_id)
             return
 
         try:
             item = self._active_items[item_id]
-            _LOGGER.debug("Triggering item: %s", item)
-            time_str = item["scheduled_time"].strftime("%I:%M %p")
-            
-            _LOGGER.info(
-                "Triggering %s '%s' scheduled for %s",
-                "alarm" if item["is_alarm"] else "reminder",
-                item_id,
-                time_str
-            )
-
             item["status"] = "active"
-            
-            # Play sound and make announcement
-            await self.media_handler.play_sound(
-                item["satellite"],
-                item["media_players"],
-                item["is_alarm"],
-                item["message"]
-            )
-            
+            item["stop_event"] = asyncio.Event()
+
+            # Start playback loop
             if item["satellite"]:
+                await self._satellite_playback_loop(item)
+            elif item["media_players"]:
+                await self._media_player_playback_loop(item)
+
+        except Exception as err:
+            _LOGGER.error("Error triggering item %s: %s", item_id, err)
+            item["status"] = "error"
+            raise
+
+    async def _satellite_playback_loop(self, item: dict) -> None:
+        """Handle satellite playback loop."""
+        while not item["stop_event"].is_set():
+            try:
+                # Wait for satellite to be idle
+                while not await self._is_satellite_idle(item["satellite"]):
+                    await asyncio.sleep(1)
+
+                # Announce current time
+                current_time = self._format_time()
                 await self.announcer.make_announcement(
                     item["satellite"],
-                    time_str,
+                    current_time,
                     item["message"],
                     item["is_alarm"]
                 )
 
-            # Handle repeat logic
-            if item["repeat"] != "once":
-                await self._schedule_next_occurrence(item_id)
-            else:
-                item["status"] = "completed"
+                # Wait for satellite to be idle again
+                while not await self._is_satellite_idle(item["satellite"]):
+                    await asyncio.sleep(1)
 
-        except Exception as err:
-            _LOGGER.error("Error triggering item %s: %s", item_id, err, exc_info=True)
-            item["status"] = "error"
-            raise
+                # Play sound file
+                await self.media_handler.play_sound(
+                    item["satellite"],
+                    [],  # No media players
+                    item["is_alarm"],
+                    item["message"]
+                )
 
-    async def _schedule_next_occurrence(self, item_id: str) -> None:
-        """Schedule the next occurrence of a repeating item."""
-        # Implementation for repeat logic
-        pass  # We'll implement this later
+                # Wait 60 seconds before next announcement
+                try:
+                    await asyncio.wait_for(item["stop_event"].wait(), timeout=60)
+                    break
+                except asyncio.TimeoutError:
+                    continue
+
+            except Exception as err:
+                _LOGGER.error("Error in satellite playback loop: %s", err)
+                await asyncio.sleep(5)
+
+    async def _media_player_playback_loop(self, item: dict) -> None:
+        """Handle media player playback loop."""
+        while not item["stop_event"].is_set():
+            try:
+                for media_player in item["media_players"]:
+                    # Wait for media player to be idle
+                    while not await self._is_media_player_idle(media_player):
+                        await asyncio.sleep(1)
+
+                    # Play TTS
+                    current_time = self._format_time()
+                    await self.hass.services.async_call(
+                        "tts",
+                        "speak",
+                        {
+                            "entity_id": media_player,
+                            "message": f"It's {current_time}. {item['message']}"
+                        },
+                        blocking=True
+                    )
+
+                    # Wait for media player to be idle
+                    while not await self._is_media_player_idle(media_player):
+                        await asyncio.sleep(1)
+
+                    # Play sound file
+                    await self.media_handler.play_sound(
+                        None,  # No satellite
+                        [media_player],
+                        item["is_alarm"],
+                        item["message"]
+                    )
+
+                # Wait for completion or stop event
+                try:
+                    await asyncio.wait_for(item["stop_event"].wait(), timeout=60)
+                    break
+                except asyncio.TimeoutError:
+                    continue
+
+            except Exception as err:
+                _LOGGER.error("Error in media player playback loop: %s", err)
+                await asyncio.sleep(5)
+
+    async def _is_satellite_idle(self, satellite: str) -> bool:
+        """Check if satellite is idle."""
+        state = self.hass.states.get(f"assist_satellite.{satellite}")
+        return state.state == "idle" if state else True
+
+    async def _is_media_player_idle(self, media_player: str) -> bool:
+        """Check if media player is idle."""
+        state = self.hass.states.get(media_player)
+        return state.state in ["idle", "off"] if state else True
+
+    def _format_time(self) -> str:
+        """Format current time based on HA configuration."""
+        now = dt_util.now()
+        time_format = self.hass.config.time_format
+        if time_format == "12":
+            return now.strftime("%I:%M %p")
+        return now.strftime("%H:%M")
+
+    async def delete_item(self, item_id: str) -> None:
+        """Delete an alarm/reminder."""
+        if item_id in self._active_items:
+            # Stop if active
+            if self._active_items[item_id].get("stop_event"):
+                self._active_items[item_id]["stop_event"].set()
+            
+            # Remove from active items
+            del self._active_items[item_id]
+            
+            # Remove entity
+            self.hass.states.async_remove(f"{DOMAIN}.{item_id}")
+            
+            # Update sensors
+            self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
 
     async def stop_item(self, item_id: str, is_alarm: bool) -> None:
         """Stop an active item."""
         if item_id in self._active_items:
-            await self.media_handler.stop_alarm(item_id)
-            del self._active_items[item_id]
+            if self._active_items[item_id].get("stop_event"):
+                self._active_items[item_id]["stop_event"].set()
+            self._active_items[item_id]["status"] = "stopped"
+            # Update entity state
+            self.hass.states.async_set(
+                f"{DOMAIN}.{item_id}",
+                "stopped",
+                self._active_items[item_id]
+            )
 
     async def snooze_item(self, item_id: str, minutes: int, is_alarm: bool) -> None:
         """Snooze an active item."""
