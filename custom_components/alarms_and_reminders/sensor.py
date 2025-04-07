@@ -41,12 +41,10 @@ class ActiveItemsSensor(SensorEntity):
     @property
     def state(self) -> StateType:
         """Return the state of the sensor."""
-        active_count = len([
-            item for item in self.coordinator._active_items.values()
-            if item["is_alarm"] == self.is_alarm and item["status"] in ["scheduled", "active"]
+        return len([
+            entity for entity in self.hass.data[DOMAIN]["entities"]
+            if entity.data["is_alarm"] == self.is_alarm and entity.state in ["scheduled", "active"]
         ])
-        _LOGGER.debug("Sensor state for %s: %d active items", "alarms" if self.is_alarm else "reminders", active_count)
-        return active_count
 
     @property
     def extra_state_attributes(self):
