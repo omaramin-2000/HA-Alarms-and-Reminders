@@ -21,12 +21,22 @@ class AlarmAndReminderCoordinator:
         self.announcer = announcer
         self._active_items: Dict[str, Dict[str, Any]] = {}
         self.async_add_entities = None  # Will be set during platform setup
+        self._alarm_counter = 0
+        self._reminder_counter = 0
 
     async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
         """Schedule an alarm or reminder."""
         try:
             _LOGGER.debug("Scheduling %s with data: %s", "alarm" if is_alarm else "reminder", call.data)
             
+            # Increment counter
+            if is_alarm:
+                self._alarm_counter += 1
+                item_name = f"alarm_{self._alarm_counter}"
+            else:
+                self._reminder_counter += 1
+                item_name = f"reminder_{self._reminder_counter}"
+
             time_input = call.data.get("time")
             date_input = call.data.get("date")
             message = call.data.get("message", "")
@@ -57,11 +67,8 @@ class AlarmAndReminderCoordinator:
                 _LOGGER.warning("Scheduled time %s is in the past. Ignoring request.", scheduled_time)
                 return
 
-            # Generate unique ID
-            item_id = f"{'alarm' if is_alarm else 'reminder'}_{now.strftime('%Y%m%d%H%M%S')}"
-            
             # Store item info
-            self._active_items[item_id] = {
+            self._active_items[item_name] = {
                 "scheduled_time": scheduled_time,
                 "satellite": target.get("satellite"),
                 "media_players": target.get("media_players", []),
@@ -69,12 +76,13 @@ class AlarmAndReminderCoordinator:
                 "is_alarm": is_alarm,
                 "repeat": repeat,
                 "repeat_days": repeat_days,
-                "status": "scheduled"
+                "status": "scheduled",
+                "name": item_name
             }
 
             # Create entity for the alarm/reminder
             self.hass.states.async_set(
-                f"{DOMAIN}.{item_id}",
+                f"{DOMAIN}.{item_name}",
                 "scheduled",
                 {
                     "scheduled_time": scheduled_time.isoformat(),
@@ -85,10 +93,11 @@ class AlarmAndReminderCoordinator:
                     "repeat": repeat,
                     "repeat_days": repeat_days,
                     "status": "scheduled",
+                    "friendly_name": item_name
                 }
             )
 
-            entity = AlarmReminderEntity(self.hass, item_id, self._active_items[item_id])
+            entity = AlarmReminderEntity(self.hass, item_name, self._active_items[item_name])
             self.hass.data[DOMAIN]["entities"].append(entity)
 
             # Add entity using the callback if available
@@ -98,7 +107,7 @@ class AlarmAndReminderCoordinator:
             _LOGGER.info(
                 "Scheduled %s '%s' for %s (in %d seconds) on satellite '%s' and media players %s",
                 "alarm" if is_alarm else "reminder",
-                item_id,
+                item_name,
                 scheduled_time,
                 delay,
                 target.get("satellite"),
@@ -108,23 +117,23 @@ class AlarmAndReminderCoordinator:
             # Schedule the action
             self.hass.loop.call_later(
                 delay,
-                lambda: self.hass.async_create_task(self._trigger_item(item_id))
+                lambda: self.hass.async_create_task(self._trigger_item(item_name))
             )
 
             # Notify state change
             self.hass.bus.async_fire(f"{DOMAIN}_state_changed", {
                 "type": "alarm" if is_alarm else "reminder",
                 "action": "scheduled",
-                "item_id": item_id,
+                "item_id": item_name,
                 "scheduled_time": scheduled_time.isoformat(),
             })
 
             # Update sensors
             self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
             
-            _LOGGER.debug("Scheduled item: %s", self._active_items[item_id])
+            _LOGGER.debug("Scheduled item: %s", self._active_items[item_name])
             
-            return item_id
+            return item_name
 
         except Exception as err:
             _LOGGER.error("Error scheduling: %s", err, exc_info=True)
@@ -142,26 +151,25 @@ class AlarmAndReminderCoordinator:
             time_str = item["scheduled_time"].strftime("%I:%M %p")
             
             _LOGGER.info(
-                "Triggering %s '%s' scheduled for %s on target '%s'",
+                "Triggering %s '%s' scheduled for %s",
                 "alarm" if item["is_alarm"] else "reminder",
                 item_id,
-                time_str,
-                item["target"]
+                time_str
             )
 
             item["status"] = "active"
             
             # Play sound and make announcement
             await self.media_handler.play_sound(
-                item["target"],
+                item["satellite"],
+                item["media_players"],
                 item["is_alarm"],
-                is_satellite="satellite" in item["target"],
-                alarm_id=item_id
+                item["message"]
             )
             
-            if "satellite" in item["target"]:
+            if item["satellite"]:
                 await self.announcer.make_announcement(
-                    item["target"],
+                    item["satellite"],
                     time_str,
                     item["message"],
                     item["is_alarm"]
