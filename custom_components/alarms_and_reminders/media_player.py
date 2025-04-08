@@ -7,48 +7,55 @@ from homeassistant.core import HomeAssistant
 _LOGGER = logging.getLogger(__name__)
 
 class MediaHandler:
-    """Handles playing sounds for alarms and reminders."""
+    """Handles playing sounds and TTS on media players."""
     
-    def __init__(self, hass: HomeAssistant, alarm_sound: str, reminder_sound: str, media_player: str = None):
+    def __init__(self, hass: HomeAssistant, alarm_sound: str, reminder_sound: str):
         """Initialize media handler."""
         self.hass = hass
         self.alarm_sound = alarm_sound
         self.reminder_sound = reminder_sound
-        self.media_player = media_player
         self._active_alarms = {}  # Store active alarms/reminders
-        self._stop_event = asyncio.Event()
+
+    async def play_on_media_player(self, media_player: str, message: str, is_alarm: bool) -> None:
+        """Play TTS and sound on media player."""
+        try:
+            # Play TTS announcement first
+            await self.hass.services.async_call(
+                "tts",
+                "speak",
+                {
+                    "entity_id": media_player,
+                    "message": message,
+                    "language": "en"
+                },
+                blocking=True
+            )
+
+            # Wait for TTS to finish
+            await asyncio.sleep(1)
+
+            # Play sound file
+            sound_file = self.alarm_sound if is_alarm else self.reminder_sound
+            await self.hass.services.async_call(
+                "media_player",
+                "play_media",
+                {
+                    "entity_id": media_player,
+                    "media_content_id": sound_file,
+                    "media_content_type": "music"
+                },
+                blocking=True
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error playing on media player %s: %s", media_player, err)
 
     async def play_sound(self, satellite: str, media_players: list, is_alarm: bool, message: str) -> None:
         """Play the appropriate sound file."""
         try:
-            sound_file = self.alarm_sound if is_alarm else self.reminder_sound
-
-            # Play on satellite
-            if satellite:
-                _LOGGER.info("Playing on satellite: %s", satellite)
-                await self.hass.services.async_call(
-                    "assist_satellite",
-                    "announce",
-                    {
-                        "satellite": satellite,
-                        "message": message,
-                    },
-                    blocking=True
-                )
-
-            # Play on media players
-            for media_player in media_players:
-                _LOGGER.info("Playing on media player: %s", media_player)
-                await self.hass.services.async_call(
-                    "media_player",
-                    "play_media",
-                    {
-                        "entity_id": media_player,
-                        "media_content_id": sound_file,
-                        "media_content_type": "music",
-                    },
-                    blocking=True
-                )
+            if media_players:
+                for media_player in media_players:
+                    await self.play_on_media_player(media_player, message, is_alarm)
 
         except Exception as err:
             _LOGGER.error("Error playing sound: %s", err, exc_info=True)

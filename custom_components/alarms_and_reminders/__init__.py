@@ -167,6 +167,37 @@ async def async_setup(hass: HomeAssistant, config: dict):
         }),
     )
 
+    async def async_stop_alarm(call: ServiceCall):
+        """Handle stop alarm service call."""
+        alarm_id = call.data.get("alarm_id")
+        await coordinator.stop_item(alarm_id, is_alarm=True)
+
+    async def async_snooze_alarm(call: ServiceCall):
+        """Handle snooze alarm service call."""
+        alarm_id = call.data.get("alarm_id")
+        minutes = call.data.get("minutes", DEFAULT_SNOOZE_MINUTES)
+        await coordinator.snooze_item(alarm_id, minutes, is_alarm=True)
+
+    # Register alarm control services
+    hass.services.async_register(
+        DOMAIN,
+        "stop_alarm",
+        async_stop_alarm,
+        schema=vol.Schema({
+            vol.Required("alarm_id"): cv.string,
+        }),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "snooze_alarm",
+        async_snooze_alarm,
+        schema=vol.Schema({
+            vol.Required("alarm_id"): cv.string,
+            vol.Optional("minutes", default=DEFAULT_SNOOZE_MINUTES): cv.positive_int,
+        }),
+    )
+
     # Set up intents
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
@@ -183,8 +214,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     media_handler = MediaHandler(
         hass,
         str(sounds_dir / "alarms" / "birds.mp3"),
-        str(sounds_dir / "reminders" / "ringtone.mp3"),
-        entry.options.get(CONF_MEDIA_PLAYER)  # Get media player from config
+        str(sounds_dir / "reminders" / "ringtone.mp3")
     )
     announcer = Announcer(hass)
     coordinator = AlarmAndReminderCoordinator(hass, media_handler, announcer)

@@ -5,7 +5,7 @@ from typing import Optional
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback  
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 from homeassistant.util import dt as dt_util
@@ -44,35 +44,63 @@ class ActiveItemsSensor(SensorEntity):
         self._attr_name = f"Active {'Alarms' if is_alarm else 'Reminders'}"
         self._attr_icon = "mdi:alarm" if is_alarm else "mdi:reminder"
         self._attr_should_poll = False
-
+        self._attr_native_unit_of_measurement = "active items"
+        
     @property
-    def state(self) -> StateType:
+    def native_value(self) -> int:
         """Return the state of the sensor."""
-        entities = self.hass.data[DOMAIN].get("entities", [])
-        return len([
-            entity for entity in entities
-            if entity.data["is_alarm"] == self.is_alarm and entity.state in ["scheduled", "active"]
-        ])
+        try:
+            count = sum(
+                1 for item in self.coordinator._active_items.values()
+                if item["is_alarm"] == self.is_alarm 
+                and item["status"] in ["scheduled", "active"]
+            )
+            _LOGGER.debug(
+                "Active %s count: %d (total items: %d)", 
+                "alarms" if self.is_alarm else "reminders",
+                count,
+                len(self.coordinator._active_items)
+            )
+            return count
+        except Exception as err:
+            _LOGGER.error("Error calculating count: %s", err)
+            return 0
+
+    async def async_added_to_hass(self):
+        """Register callbacks."""
+        @callback
+        def _state_changed(event):
+            """Handle state changes."""
+            self.async_schedule_update_ha_state(True)
+
+        self.async_on_remove(
+            self.hass.bus.async_listen(f"{DOMAIN}_state_changed", _state_changed)
+        )
 
     @property
     def extra_state_attributes(self):
         """Return entity specific state attributes."""
         items = {}
         now = dt_util.now()
-        
+            
+        # Get items from coordinator
         for item_id, item in self.coordinator._active_items.items():
             if item["is_alarm"] == self.is_alarm:
+                try:
+                    next_trigger = (item["scheduled_time"] - now).total_seconds()
+                except Exception:
+                    next_trigger = 0
+
                 items[item_id] = {
                     "time": item["scheduled_time"].strftime("%I:%M %p"),
                     "date": item["scheduled_time"].strftime("%Y-%m-%d"),
                     "message": item["message"],
                     "repeat": item["repeat"],
-                    "target": item["target"],
+                    "satellite": item["satellite"],
                     "status": item["status"],
-                    "next_trigger": (item["scheduled_time"] - now).total_seconds()
+                    "next_trigger": next_trigger
                 }
         
-        _LOGGER.debug("Sensor attributes for %s: %s", "alarms" if self.is_alarm else "reminders", items)
         return {
             "items": items,
             "last_updated": now.isoformat()

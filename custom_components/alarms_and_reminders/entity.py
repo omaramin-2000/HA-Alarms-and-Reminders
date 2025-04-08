@@ -1,6 +1,9 @@
+"""Entity definitions for Alarms and Reminders."""
+import voluptuous as vol  
 from homeassistant.helpers.entity import Entity
 from homeassistant.const import ATTR_NAME
 from homeassistant.helpers import entity_platform
+from .const import DOMAIN
 
 class AlarmReminderEntity(Entity):
     """Representation of an Alarm or Reminder."""
@@ -13,7 +16,7 @@ class AlarmReminderEntity(Entity):
         self._attr_name = data.get("name", item_id)
         self._attr_unique_id = item_id
         self._attr_should_poll = False
-
+        
     async def async_added_to_hass(self):
         """Run when entity is added to registry."""
         platform = entity_platform.async_get_current_platform()
@@ -32,27 +35,52 @@ class AlarmReminderEntity(Entity):
             },
             "async_snooze"
         )
-        
-        platform.async_register_entity_service(
-            "delete",
-            {},
-            "async_delete"
-        )
 
     async def async_stop(self):
         """Stop the alarm/reminder."""
-        coordinator = self.hass.data[DOMAIN]["coordinator"]
-        await coordinator.stop_item(self.item_id, self.data["is_alarm"])
+        if self.data["is_alarm"]:
+            await self.hass.services.async_call(
+                DOMAIN,
+                "stop_alarm",
+                {"alarm_id": self.item_id},
+                blocking=True
+            )
+        else:
+            await self.hass.services.async_call(
+                DOMAIN,
+                "stop_reminder",
+                {"reminder_id": self.item_id},
+                blocking=True
+            )
 
     async def async_snooze(self, minutes: int = 5):
         """Snooze the alarm/reminder."""
-        coordinator = self.hass.data[DOMAIN]["coordinator"]
-        await coordinator.snooze_item(self.item_id, minutes, self.data["is_alarm"])
+        if self.data["is_alarm"]:
+            await self.hass.services.async_call(
+                DOMAIN,
+                "snooze_alarm",
+                {
+                    "alarm_id": self.item_id,
+                    "minutes": minutes
+                },
+                blocking=True
+            )
+        else:
+            await self.hass.services.async_call(
+                DOMAIN,
+                "snooze_reminder",
+                {
+                    "reminder_id": self.item_id,
+                    "minutes": minutes
+                },
+                blocking=True
+            )
 
     async def async_delete(self):
         """Delete the alarm/reminder."""
-        coordinator = self.hass.data[DOMAIN]["coordinator"]
-        await coordinator.delete_item(self.item_id)
+        coordinator = self.hass.data[DOMAIN].get(next(iter(self.hass.data[DOMAIN])))
+        if coordinator:
+            await coordinator.delete_item(self.item_id)
 
     @property
     def name(self):
@@ -66,14 +94,33 @@ class AlarmReminderEntity(Entity):
 
     @property
     def extra_state_attributes(self):
-        """Return the extra state attributes."""
-        return {
+        """Return entity specific state attributes."""
+        attrs = {
             "scheduled_time": self.data["scheduled_time"].isoformat(),
             "message": self.data["message"],
             "repeat": self.data["repeat"],
-            "repeat_days": self.data["repeat_days"],
             "status": self.data["status"],
             "satellite": self.data["satellite"],
-            "media_players": self.data["media_players"],
-            "is_alarm": self.data["is_alarm"]
+            "is_alarm": self.data["is_alarm"],
+            # Add control buttons for dashboard
+            "control_buttons": [
+                {
+                    "service": f"{DOMAIN}.stop",
+                    "name": "Stop",
+                    "icon": "mdi:stop"
+                },
+                {
+                    "service": f"{DOMAIN}.snooze",
+                    "name": "Snooze",
+                    "icon": "mdi:snooze"
+                }
+            ]
         }
+        return attrs
+
+    @property
+    def icon(self):
+        """Return the icon to use in the frontend."""
+        if self.data["is_alarm"]:
+            return "mdi:alarm" if self.data["status"] == "scheduled" else "mdi:alarm-bell"
+        return "mdi:reminder"

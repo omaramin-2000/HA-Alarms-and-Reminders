@@ -122,22 +122,37 @@ set_reminder:
             - "sun"
 
 stop_alarm:
-  description: Stop an active alarm or reminder
+  name: Stop Alarm
+  description: Stop an active alarm
   fields:
     alarm_id:
-      description: ID of the alarm/reminder to stop
-      example: "alarm_123"
+      name: Alarm ID
+      description: ID of the alarm to stop
+      required: true
+      example: "alarm_1"
+      selector:
+        text:
 
 snooze_alarm:
-  description: Snooze an active alarm or reminder
+  name: Snooze Alarm
+  description: Snooze an active alarm
   fields:
     alarm_id:
-      description: ID of the alarm/reminder to snooze
-      example: "alarm_123"
+      name: Alarm ID
+      description: ID of the alarm to snooze
+      required: true
+      example: "alarm_1"
+      selector:
+        text:
     minutes:
+      name: Minutes
       description: Number of minutes to snooze
-      example: 5
       default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
 
 stop_reminder:
   description: Stop an active reminder
