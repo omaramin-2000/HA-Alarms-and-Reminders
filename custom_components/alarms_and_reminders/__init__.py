@@ -6,7 +6,6 @@ import voluptuous as vol
 from pathlib import Path
 from typing import Union
 from datetime import time, datetime
-import importlib
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.config_entries import ConfigEntry
@@ -22,6 +21,11 @@ from .const import (
     SERVICE_SNOOZE_ALARM,  
     SERVICE_STOP_REMINDER,
     SERVICE_SNOOZE_REMINDER,
+    SERVICE_STOP_ALL_ALARMS,  
+    SERVICE_STOP_ALL_REMINDERS,  
+    SERVICE_STOP_ALL,  
+    SERVICE_EDIT_ALARM,  
+    SERVICE_EDIT_REMINDER,  
     ATTR_DATETIME,
     ATTR_SATELLITE,
     ATTR_MESSAGE,
@@ -340,6 +344,75 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "stop_all",
             async_stop_all,
             schema=vol.Schema({}),
+        )
+
+        async def async_edit_alarm(call: ServiceCall):
+            """Handle edit alarm service call."""
+            try:
+                # Create a mutable copy of the data
+                data = dict(call.data)
+                alarm_id = data.pop("alarm_id")
+                
+                coordinator = None
+                for entry_id, data_entry in hass.data[DOMAIN].items():
+                    if isinstance(data_entry, dict) and "coordinator" in data_entry:
+                        coordinator = data_entry["coordinator"]
+                        break
+                
+                if coordinator:
+                    await coordinator.edit_item(alarm_id, data, is_alarm=True)
+                
+            except Exception as err:
+                _LOGGER.error("Error editing alarm: %s", err, exc_info=True)
+
+        async def async_edit_reminder(call: ServiceCall):
+            """Handle edit reminder service call."""
+            try:
+                # Create a mutable copy of the data
+                data = dict(call.data)
+                reminder_id = data.pop("reminder_id")
+                
+                coordinator = None
+                for entry_id, data_entry in hass.data[DOMAIN].items():
+                    if isinstance(data_entry, dict) and "coordinator" in data_entry:
+                        coordinator = data_entry["coordinator"]
+                        break
+                
+                if coordinator:
+                    await coordinator.edit_item(reminder_id, data, is_alarm=False)
+                
+            except Exception as err:
+                _LOGGER.error("Error editing reminder: %s", err, exc_info=True)
+
+        # Register edit services
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_EDIT_ALARM,
+            async_edit_alarm,
+            schema=vol.Schema({
+                vol.Required("alarm_id"): cv.entity_id,
+                vol.Optional("time"): cv.time,
+                vol.Optional("date"): cv.date,
+                vol.Optional("name"): cv.string,
+                vol.Optional("message"): cv.string,
+                vol.Optional("satellite"): cv.entity_id,
+                vol.Optional("media_player"): cv.entity_id,
+            })
+        )
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_EDIT_REMINDER,
+            async_edit_reminder,
+            schema=vol.Schema({
+                vol.Required("reminder_id"): cv.entity_id,
+                vol.Optional("time"): cv.time,
+                vol.Optional("date"): cv.date,
+                vol.Optional("name"): cv.string,
+                vol.Optional("message"): cv.string,
+                vol.Optional("satellite"): cv.entity_id,
+                vol.Optional("media_player"): cv.entity_id,
+            })
         )
 
         # Set up intents

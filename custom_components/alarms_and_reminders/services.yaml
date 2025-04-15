@@ -253,3 +253,111 @@ stop_all:
   name: Stop All
   description: Stop all active alarms and reminders
   fields: {}
+
+edit_alarm:
+  name: Edit Alarm
+  description: Edit an existing alarm's settings
+  fields:
+    alarm_id:
+      name: Alarm
+      description: Select the alarm to edit
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            attributes:
+              is_alarm: true
+    time:
+      name: Time
+      description: New time for the alarm (HH:MM format)
+      required: false
+      example: "07:30"
+      selector:
+        time: {}
+    date:
+      name: Date
+      description: New date for the alarm
+      required: false
+      selector:
+        date: {}
+    name:
+      name: Name
+      description: New name for the alarm
+      required: false
+      selector:
+        text: {}
+    message:
+      name: Message
+      description: New message for the alarm
+      required: false
+      selector:
+        text: {}
+    satellite:
+      name: Satellite
+      description: New satellite for the alarm
+      required: false
+      selector:
+        entity:
+          domain: assist_satellite
+    media_player:
+      name: Media Player
+      description: New media player for the alarm
+      required: false
+      selector:
+        entity:
+          domain: media_player
+
+edit_reminder:
+  name: Edit Reminder
+  description: Edit an existing reminder's settings
+  fields:
+    reminder_id:
+      name: Reminder
+      description: Select the reminder to edit
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            attributes:
+              is_alarm: false
+    time:
+      name: Time
+      description: New time for the reminder (HH:MM format)
+      required: false
+      example: "07:30"
+      selector:
+        time: {}
+    date:
+      name: Date
+      description: New date for the reminder
+      required: false
+      selector:
+        date: {}
+    name:
+      name: Name
+      description: New name for the reminder
+      required: false
+      selector:
+        text: {}
+    message:
+      name: Message
+      description: New message for the reminder
+      required: false
+      selector:
+        text: {}
+    satellite:
+      name: Satellite
+      description: New satellite for the reminder
+      required: false
+      selector:
+        entity:
+          domain: assist_satellite
+    media_player:
+      name: Media Player
+      description: New media player for the reminder
+      required: false
+      selector:
+        entity:
+          domain: media_player

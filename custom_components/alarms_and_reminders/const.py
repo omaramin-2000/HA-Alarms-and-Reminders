@@ -11,6 +11,11 @@ SERVICE_STOP_ALARM = "stop_alarm"
 SERVICE_SNOOZE_ALARM = "snooze_alarm"
 SERVICE_STOP_REMINDER = "stop_reminder"
 SERVICE_SNOOZE_REMINDER = "snooze_reminder"
+SERVICE_STOP_ALL_ALARMS = "stop_all_alarms"
+SERVICE_STOP_ALL_REMINDERS = "stop_all_reminders"
+SERVICE_STOP_ALL = "stop_all"
+SERVICE_EDIT_ALARM = "edit_alarm"
+SERVICE_EDIT_REMINDER = "edit_reminder"
 
 # Attributes
 ATTR_DATETIME = "datetime"      # A string containing the reminder time

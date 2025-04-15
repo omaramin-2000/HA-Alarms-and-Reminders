@@ -424,3 +424,86 @@ class AlarmAndReminderCoordinator:
 
         except Exception as err:
             _LOGGER.error("Error stopping all items: %s", err, exc_info=True)
+
+    async def edit_item(self, item_id: str, changes: dict, is_alarm: bool) -> None:
+        """Edit an existing alarm or reminder."""
+        try:
+            # Remove domain prefix if present
+            if item_id.startswith(f"{DOMAIN}."):
+                item_id = item_id.split(".")[-1]
+
+            if item_id not in self._active_items:
+                _LOGGER.error("Item %s not found", item_id)
+                return
+
+            item = self._active_items[item_id]
+            
+            # Verify item type matches
+            if item["is_alarm"] != is_alarm:
+                _LOGGER.error(
+                    "Cannot edit %s as %s", 
+                    "alarm" if is_alarm else "reminder",
+                    "reminder" if is_alarm else "alarm"
+                )
+                return
+
+            # Update time if provided
+            if "time" in changes:
+                time_input = changes["time"]
+                if isinstance(time_input, str):
+                    hour, minute = map(int, time_input.split(':'))
+                    time_input = datetime.time(hour, minute)
+                
+                # Get current date or new date if provided
+                current_date = (
+                    changes["date"] if "date" in changes 
+                    else item["scheduled_time"].date()
+                )
+                
+                # Create new scheduled time
+                new_time = datetime.combine(current_date, time_input)
+                new_time = dt_util.as_local(new_time)
+                
+                # Check if new time is in the past
+                if new_time < dt_util.now():
+                    if "date" not in changes:  # Only adjust if date wasn't explicitly set
+                        new_time = new_time + timedelta(days=1)
+                
+                item["scheduled_time"] = new_time
+
+            # Update other fields if provided
+            for field in ["name", "message", "satellite", "media_player"]:
+                if field in changes:
+                    item[field] = changes[field]
+
+            # Store updated item
+            self._active_items[item_id] = item
+
+            # Reschedule item
+            delay = (item["scheduled_time"] - dt_util.now()).total_seconds()
+            if delay > 0:
+                self.hass.loop.call_later(
+                    delay,
+                    lambda: self.hass.async_create_task(
+                        self._trigger_item(item_id)
+                    )
+                )
+
+            # Update entity state
+            self.hass.states.async_set(
+                f"{DOMAIN}.{item_id}",
+                "scheduled",
+                item
+            )
+
+            # Force update of sensors
+            self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
+
+            _LOGGER.info(
+                "Successfully edited %s: %s", 
+                "alarm" if is_alarm else "reminder",
+                item_id
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error editing item %s: %s", item_id, err, exc_info=True)
