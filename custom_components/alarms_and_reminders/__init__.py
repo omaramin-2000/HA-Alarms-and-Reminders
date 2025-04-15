@@ -1,4 +1,6 @@
 """The Alarms and Reminders integration."""
+from __future__ import annotations
+
 import logging
 import voluptuous as vol
 from pathlib import Path
@@ -37,6 +39,8 @@ from .media_player import MediaHandler
 from .announcer import Announcer
 from .intents import async_setup_intents
 from .sensor import async_setup_entry as async_setup_sensor_entry
+
+__all__ = ["AlarmAndReminderCoordinator"]
 
 _LOGGER = logging.getLogger(__name__)
 
