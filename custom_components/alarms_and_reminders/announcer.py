@@ -3,6 +3,7 @@ import logging
 import asyncio
 from datetime import datetime
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util 
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +35,8 @@ class Announcer:
 
                 try:
                     # Format announcement based on type and name
-                    current_time = datetime.now().strftime("%I:%M %p")
+                    now = dt_util.now()  # Get local time from HA
+                    current_time = now.strftime("%I:%M %p").lstrip("0")  # Remove leading zero
                     
                     if is_alarm:
                         # For alarms, only include name if it's not auto-generated
@@ -53,6 +55,8 @@ class Announcer:
                         if message:
                             announcement += f". {message}"
                     
+                    _LOGGER.debug("Making announcement: %s", announcement)
+
                     # 2. Make TTS announcement
                     await self.hass.services.async_call(
                         "assist_satellite",
