@@ -15,6 +15,8 @@ A Home Assistant integration that allows you to set alarms and reminders that wi
 - Optional media player support
 - Snooze and stop functionality
 - Dashboard controls
+- Stop all alarms/reminders functionality
+- Active alarms and reminders sensors with status tracking
 
 ## Known Limitations
 - Limited error handling
@@ -64,12 +66,30 @@ Control:
 ### Services
 
 The integration provides several services:
-- `alarms_and_reminders.set_alarm`
-- `alarms_and_reminders.set_reminder`
-- `alarms_and_reminders.stop_alarm`
-- `alarms_and_reminders.snooze_alarm`
-- `alarms_and_reminders.stop_reminder`
-- `alarms_and_reminders.snooze_reminder`
+
+Basic Controls:
+- `alarms_and_reminders.set_alarm` - Set a new alarm
+- `alarms_and_reminders.set_reminder` - Set a new reminder
+- `alarms_and_reminders.stop_alarm` - Stop a specific alarm
+- `alarms_and_reminders.snooze_alarm` - Snooze a specific alarm
+- `alarms_and_reminders.stop_reminder` - Stop a specific reminder
+- `alarms_and_reminders.snooze_reminder` - Snooze a specific reminder
+
+Global Controls:
+- `alarms_and_reminders.stop_all_alarms` - Stop all active alarms
+- `alarms_and_reminders.stop_all_reminders` - Stop all active reminders
+- `alarms_and_reminders.stop_all` - Stop all active alarms and reminders
+
+### Sensors
+
+The integration provides two sensors:
+- `sensor.active_alarms` - Shows count and details of active alarms
+- `sensor.active_reminders` - Shows count and details of active reminders
+
+Each sensor includes:
+- Count of active items
+- List of active items with details
+- Stop all button for quick control
 
 ## Support
 
