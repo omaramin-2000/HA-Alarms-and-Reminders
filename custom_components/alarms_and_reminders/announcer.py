@@ -14,7 +14,8 @@ class Announcer:
         self.hass = hass
         self._stop_event = None
 
-    async def announce_on_satellite(self, satellite: str, message: str, sound_file: str, stop_event=None) -> None:
+    async def announce_on_satellite(self, satellite: str, message: str, sound_file: str, 
+                                    stop_event=None, name: str = None, is_alarm: bool = False) -> None:
         """Make announcement and play sound on satellite."""
         try:
             # Store stop event
@@ -32,10 +33,27 @@ class Announcer:
                     break
 
                 try:
-                    # 1. First make the TTS announcement
+                    # Format announcement based on type and name
                     current_time = datetime.now().strftime("%I:%M %p")
-                    announcement = f"It's {current_time}. {message}" if message else f"It's {current_time}"
                     
+                    if is_alarm:
+                        # For alarms, only include name if it's not auto-generated
+                        if name and not name.startswith("alarm_"):
+                            announcement = f"{name} alarm. It's {current_time}"
+                            if message:
+                                announcement += f". {message}"
+                        else:
+                            # Auto-generated alarm name, just announce time
+                            announcement = f"It's {current_time}"
+                            if message:
+                                announcement += f". {message}"
+                    else:
+                        # For reminders, always include the name
+                        announcement = f"Time to {name}. It's {current_time}"
+                        if message:
+                            announcement += f". {message}"
+                    
+                    # 2. Make TTS announcement
                     await self.hass.services.async_call(
                         "assist_satellite",
                         "announce",
@@ -46,13 +64,13 @@ class Announcer:
                         blocking=True
                     )
 
-                    # 2. Wait for satellite to be idle
+                    # 3. Wait for satellite to be idle
                     while not await self._is_satellite_idle(satellite_entity_id):
                         if self._stop_event and self._stop_event.is_set():
                             return
                         await asyncio.sleep(1)
 
-                    # 3. Play ringtone
+                    # 4. Play ringtone
                     await self.hass.services.async_call(
                         "assist_satellite",
                         "announce",
@@ -63,7 +81,7 @@ class Announcer:
                         blocking=True
                     )
 
-                    # 4. Wait for one minute or until stopped
+                    # 5. Wait for one minute or until stopped
                     try:
                         if self._stop_event:
                             await asyncio.wait_for(self._stop_event.wait(), timeout=60)
@@ -71,11 +89,11 @@ class Announcer:
                         else:
                             await asyncio.sleep(60)
                     except asyncio.TimeoutError:
-                        continue  # Continue to next iteration after 1 minute
+                        continue
 
                 except Exception as err:
                     _LOGGER.error("Error in announcement loop: %s", err)
-                    await asyncio.sleep(5)  # Wait before retry on error
+                    await asyncio.sleep(5)
 
         except Exception as err:
             _LOGGER.error(

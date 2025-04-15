@@ -1,255 +1,127 @@
-"""Coordinator for scheduling alarms and reminders."""
-import logging
-from typing import Dict, Any
-import asyncio
-from datetime import datetime, timedelta
+"""Entity definitions for Alarms and Reminders."""
+import voluptuous as vol  
+from homeassistant.helpers.entity import Entity
+from homeassistant.const import ATTR_NAME
+from homeassistant.helpers import entity_platform
+from .const import DOMAIN
 
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.util import dt as dt_util
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from .const import DOMAIN  # Add this import at the top
-from .entity import AlarmReminderEntity
+class AlarmReminderEntity(Entity):
+    """Representation of an Alarm or Reminder."""
 
-_LOGGER = logging.getLogger(__name__)
-
-class AlarmAndReminderCoordinator:
-    """Coordinates scheduling of alarms and reminders."""
-    
-    def __init__(self, hass: HomeAssistant, media_handler, announcer):
-        """Initialize coordinator."""
+    def __init__(self, hass, item_id, data):
+        """Initialize the entity."""
         self.hass = hass
-        self.media_handler = media_handler
-        self.announcer = announcer
-        self._active_items: Dict[str, Dict[str, Any]] = {}
-        self.async_add_entities = None  # Will be set during platform setup
-        self._alarm_counter = 0
-        self._reminder_counter = 0
+        self.item_id = item_id
+        self.data = data
+        self._attr_name = data.get("name", item_id)
+        self._attr_unique_id = item_id
+        self._attr_should_poll = False
+        
+    async def async_added_to_hass(self):
+        """Run when entity is added to registry."""
+        platform = entity_platform.async_get_current_platform()
+        
+        # Register entity services
+        platform.async_register_entity_service(
+            "stop",
+            {},
+            "async_stop"
+        )
+        
+        platform.async_register_entity_service(
+            "snooze",
+            {
+                vol.Optional("minutes", default=5): int,
+            },
+            "async_snooze"
+        )
 
-    async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
-        """Schedule an alarm or reminder."""
-        try:
-            _LOGGER.debug("Scheduling %s with data: %s", "alarm" if is_alarm else "reminder", call.data)
-            
-            # Increment counter
-            if is_alarm:
-                self._alarm_counter += 1
-                item_name = f"alarm_{self._alarm_counter}"
-            else:
-                self._reminder_counter += 1
-                item_name = f"reminder_{self._reminder_counter}"
-
-            time_input = call.data.get("time")
-            date_input = call.data.get("date")
-            message = call.data.get("message", "")
-            repeat = call.data.get("repeat", "once")
-            repeat_days = call.data.get("repeat_days", [])
-
-            # Convert time input to datetime
-            now = dt_util.now()
-            if isinstance(time_input, str):
-                try:
-                    hour, minute = map(int, time_input.split(':'))
-                    time_input = datetime.time(hour, minute)
-                except ValueError as err:
-                    _LOGGER.error("Invalid time format: %s", err)
-                    return
-
-            if date_input:
-                scheduled_time = datetime.combine(date_input, time_input)
-                scheduled_time = dt_util.as_local(scheduled_time)
-            else:
-                scheduled_time = datetime.combine(now.date(), time_input)
-                scheduled_time = dt_util.as_local(scheduled_time)
-                if scheduled_time < now:
-                    scheduled_time = scheduled_time + timedelta(days=1)
-
-            delay = (scheduled_time - now).total_seconds()
-            if delay < 0:
-                _LOGGER.warning("Scheduled time %s is in the past. Ignoring request.", scheduled_time)
-                return
-
-            # Store item info
-            self._active_items[item_name] = {
-                "scheduled_time": scheduled_time,
-                "satellite": target.get("satellite"),
-                "media_players": target.get("media_players", []),
-                "message": message,
-                "is_alarm": is_alarm,
-                "repeat": repeat,
-                "repeat_days": repeat_days,
-                "status": "scheduled",
-                "name": item_name
-            }
-
-            # Create entity and update state
-            entity = AlarmReminderEntity(self.hass, item_name, self._active_items[item_name])
-            self.hass.data[DOMAIN]["entities"].append(entity)
-            
-            if self.async_add_entities:
-                await self.hass.async_add_executor_job(self.async_add_entities, [entity])
-
-            # Update entity state
-            self.hass.states.async_set(
-                f"{DOMAIN}.{item_name}",
-                "scheduled",
-                self._active_items[item_name]
+    async def async_stop(self):
+        """Stop the alarm/reminder."""
+        if self.data["is_alarm"]:
+            await self.hass.services.async_call(
+                DOMAIN,
+                "stop_alarm",
+                {"alarm_id": self.item_id},
+                blocking=True
+            )
+        else:
+            await self.hass.services.async_call(
+                DOMAIN,
+                "stop_reminder",
+                {"reminder_id": self.item_id},
+                blocking=True
             )
 
-            # Force update of sensors
-            self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
-
-            _LOGGER.info(
-                "Scheduled %s '%s' for %s (in %d seconds) on satellite '%s' and media players %s",
-                "alarm" if is_alarm else "reminder",
-                item_name,
-                scheduled_time,
-                delay,
-                target.get("satellite"),
-                target.get("media_players")
+    async def async_snooze(self, minutes: int = 5):
+        """Snooze the alarm/reminder."""
+        if self.data["is_alarm"]:
+            await self.hass.services.async_call(
+                DOMAIN,
+                "snooze_alarm",
+                {
+                    "alarm_id": self.item_id,
+                    "minutes": minutes
+                },
+                blocking=True
+            )
+        else:
+            await self.hass.services.async_call(
+                DOMAIN,
+                "snooze_reminder",
+                {
+                    "reminder_id": self.item_id,
+                    "minutes": minutes
+                },
+                blocking=True
             )
 
-            # Schedule the action
-            self.hass.loop.call_later(
-                delay,
-                lambda: self.hass.async_create_task(self._trigger_item(item_name))
-            )
+    async def async_delete(self):
+        """Delete the alarm/reminder."""
+        coordinator = self.hass.data[DOMAIN].get(next(iter(self.hass.data[DOMAIN])))
+        if coordinator:
+            await coordinator.delete_item(self.item_id)
 
-            # Notify state change
-            self.hass.bus.async_fire(f"{DOMAIN}_state_changed", {
-                "type": "alarm" if is_alarm else "reminder",
-                "action": "scheduled",
-                "item_id": item_name,
-                "scheduled_time": scheduled_time.isoformat(),
-            })
+    @property
+    def name(self):
+        """Return the name of the entity."""
+        return self._attr_name
 
-            # Update sensors
-            self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
-            
-            _LOGGER.debug("Scheduled item: %s", self._active_items[item_name])
-            
-            return item_name
+    @property
+    def state(self):
+        """Return the state of the entity."""
+        return self.data["status"]
 
-        except Exception as err:
-            _LOGGER.error("Error scheduling: %s", err, exc_info=True)
-            raise
+    @property
+    def extra_state_attributes(self):
+        """Return entity specific state attributes."""
+        attrs = {
+            "scheduled_time": self.data["scheduled_time"].isoformat(),
+            "message": self.data["message"],
+            "repeat": self.data["repeat"],
+            "status": self.data["status"],
+            "satellite": self.data["satellite"],
+            "media_players": self.data.get("media_players", []),
+            "is_alarm": self.data["is_alarm"],
+            "name": self.data["name"],
+            "control_buttons": [
+                {
+                    "service": f"{DOMAIN}.stop",
+                    "name": "Stop",
+                    "icon": "mdi:stop"
+                },
+                {
+                    "service": f"{DOMAIN}.snooze",
+                    "name": "Snooze",
+                    "icon": "mdi:snooze"
+                }
+            ]
+        }
+        return attrs
 
-    async def _trigger_item(self, item_id: str) -> None:
-        """Trigger the scheduled item."""
-        if item_id not in self._active_items:
-            return
-
-        try:
-            item = self._active_items[item_id]
-            item["status"] = "active"
-            item["stop_event"] = asyncio.Event()
-
-            # Start playback loop
-            if item["satellite"]:
-                await self._satellite_playback_loop(item)
-            elif item["media_players"]:
-                await self._media_player_playback_loop(item)
-
-        except Exception as err:
-            _LOGGER.error("Error triggering item %s: %s", item_id, err)
-            item["status"] = "error"
-            raise
-
-    async def _satellite_playback_loop(self, item: dict) -> None:
-        """Handle satellite playback loop."""
-        try:
-            # Get appropriate sound file
-            sound_file = self.media_handler.alarm_sound if item["is_alarm"] else self.media_handler.reminder_sound
-
-            # Use announcer to handle satellite playback with stop event
-            await self.announcer.announce_on_satellite(
-                item["satellite"],
-                item["message"],
-                sound_file,
-                item["stop_event"]
-            )
-
-        except Exception as err:
-            _LOGGER.error("Error in satellite playback loop: %s", err)
-            item["status"] = "error"
-
-    async def _media_player_playback_loop(self, item: dict) -> None:
-        """Handle media player playback loop."""
-        while not item["stop_event"].is_set():
-            try:
-                for media_player in item["media_players"]:
-                    # Wait for media player to be idle
-                    while not await self._is_media_player_idle(media_player):
-                        await asyncio.sleep(1)
-
-                    # Format message with current time
-                    current_time = self._format_time()
-                    message = f"It's {current_time}. {item['message']}" if item['message'] else f"It's {current_time}"
-
-                    # Use media handler to play on media player
-                    await self.media_handler.play_on_media_player(
-                        media_player,
-                        message,
-                        item["is_alarm"]
-                    )
-
-                # Wait for completion or stop event
-                try:
-                    await asyncio.wait_for(item["stop_event"].wait(), timeout=60)
-                    break
-                except asyncio.TimeoutError:
-                    continue
-
-            except Exception as err:
-                _LOGGER.error("Error in media player playback loop: %s", err)
-                await asyncio.sleep(5)
-
-    async def _is_satellite_idle(self, satellite: str) -> bool:
-        """Check if satellite is idle."""
-        state = self.hass.states.get(f"assist_satellite.{satellite}")
-        return state.state == "idle" if state else True
-
-    async def _is_media_player_idle(self, media_player: str) -> bool:
-        """Check if media player is idle."""
-        state = self.hass.states.get(media_player)
-        return state.state in ["idle", "off"] if state else True
-
-    def _format_time(self) -> str:
-        """Format current time based on HA configuration."""
-        now = dt_util.now()
-        # Get time format from core config
-        time_format = self.hass.config.time_zone.endswith('12h')
-        return now.strftime("%I:%M %p") if time_format else now.strftime("%H:%M")
-
-    async def delete_item(self, item_id: str) -> None:
-        """Delete an alarm/reminder."""
-        if item_id in self._active_items:
-            # Stop if active
-            if self._active_items[item_id].get("stop_event"):
-                self._active_items[item_id]["stop_event"].set()
-            
-            # Remove from active items
-            del self._active_items[item_id]
-            
-            # Remove entity
-            self.hass.states.async_remove(f"{DOMAIN}.{item_id}")
-            
-            # Update sensors
-            self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
-
-    async def stop_item(self, item_id: str, is_alarm: bool) -> None:
-        """Stop an active item."""
-        if item_id in self._active_items:
-            if self._active_items[item_id].get("stop_event"):
-                self._active_items[item_id]["stop_event"].set()
-            self._active_items[item_id]["status"] = "stopped"
-            # Update entity state
-            self.hass.states.async_set(
-                f"{DOMAIN}.{item_id}",
-                "stopped",
-                self._active_items[item_id]
-            )
-
-    async def snooze_item(self, item_id: str, minutes: int, is_alarm: bool) -> None:
-        """Snooze an active item."""
-        if item_id in self._active_items:
-            await self.media_handler.snooze_alarm(item_id, minutes)
+    @property
+    def icon(self):
+        """Return the icon to use in the frontend."""
+        if self.data["is_alarm"]:
+            return "mdi:alarm-bell" if self.data["status"] == "active" else "mdi:alarm"
+        return "mdi:reminder"

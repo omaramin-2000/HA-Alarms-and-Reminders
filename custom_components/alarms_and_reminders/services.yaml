@@ -2,6 +2,26 @@ set_alarm:
   name: Set Alarm
   description: Set an alarm with specified parameters.
   fields:
+    time:
+      name: Time
+      description: The time for the alarm (required)
+      required: true
+      selector:
+        time: {}
+    name:
+      name: Name
+      description: Optional name for the alarm (can include spaces)
+      example: "Morning Wake Up"
+      required: false
+      selector:
+        text:
+          multiline: false
+    date:
+      name: Date
+      description: Optional date for the alarm (defaults to today)
+      required: false
+      selector:
+        date: {}
     satellite:
       name: Satellite
       description: The satellite to announce the alarm on (mutually exclusive with media_player)
@@ -14,17 +34,6 @@ set_alarm:
       selector:
         entity:
           domain: media_player
-    time:
-      name: Time
-      description: The time for the alarm
-      required: true
-      selector:
-        time: {}
-    date:
-      name: Date
-      description: Optional date for the alarm (defaults to today)
-      selector:
-        date: {}
     message:
       name: Message
       description: Optional message to announce
@@ -64,6 +73,26 @@ set_reminder:
   name: Set Reminder
   description: Set a reminder with specified parameters.
   fields:
+    time:
+      name: Time
+      description: The time for the reminder (required)
+      required: true
+      selector:
+        time: {}
+    name:
+      name: Name
+      description: Name for the reminder (required, can include spaces)
+      example: "Take Medication"
+      required: true
+      selector:
+        text:
+          multiline: false
+    date:
+      name: Date
+      description: Optional date for the reminder (defaults to today)
+      required: false
+      selector:
+        date: {}
     satellite:
       name: Satellite
       description: The satellite to announce the reminder on (mutually exclusive with media_player)
@@ -77,16 +106,6 @@ set_reminder:
       selector:
         entity:
           domain: media_player
-    time:
-      name: Time
-      description: The time for the reminder
-      selector:
-        time: {}
-    date:
-      name: Date
-      description: Optional date for the reminder (defaults to today)
-      selector:
-        date: {}
     message:
       name: Message
       description: Optional message to announce
@@ -126,12 +145,18 @@ stop_alarm:
   description: Stop an active alarm
   fields:
     alarm_id:
-      name: Alarm ID
-      description: ID of the alarm to stop
+      name: Alarm
+      description: Select the alarm to stop
       required: true
-      example: "alarm_1"
       selector:
-        text:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            state: 
+              - "active"
+              - "scheduled"
+            attributes:
+              is_alarm: true
 
 snooze_alarm:
   name: Snooze Alarm
@@ -155,11 +180,22 @@ snooze_alarm:
           step: 1
 
 stop_reminder:
+  name: Stop Reminder
   description: Stop an active reminder
   fields:
     reminder_id:
-      description: ID of the reminder to stop
-      example: "reminder_123"
+      name: Reminder
+      description: Select the reminder to stop
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            state: 
+              - "active"
+              - "scheduled"
+            attributes:
+              is_alarm: false
 
 snooze_reminder:
   description: Snooze an active reminder
@@ -202,3 +238,18 @@ delete:
   target:
     entity:
       domain: alarms_and_reminders
+
+stop_all_alarms:
+  name: Stop All Alarms
+  description: Stop all active alarms
+  fields: {}
+
+stop_all_reminders:
+  name: Stop All Reminders
+  description: Stop all active reminders
+  fields: {}
+
+stop_all:
+  name: Stop All
+  description: Stop all active alarms and reminders
+  fields: {}

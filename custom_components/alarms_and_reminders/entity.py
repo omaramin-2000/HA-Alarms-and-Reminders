@@ -101,8 +101,9 @@ class AlarmReminderEntity(Entity):
             "repeat": self.data["repeat"],
             "status": self.data["status"],
             "satellite": self.data["satellite"],
+            "media_players": self.data.get("media_players", []),
             "is_alarm": self.data["is_alarm"],
-            # Add control buttons for dashboard
+            "name": self.data["name"],
             "control_buttons": [
                 {
                     "service": f"{DOMAIN}.stop",
@@ -122,5 +123,5 @@ class AlarmReminderEntity(Entity):
     def icon(self):
         """Return the icon to use in the frontend."""
         if self.data["is_alarm"]:
-            return "mdi:alarm" if self.data["status"] == "scheduled" else "mdi:alarm-bell"
+            return "mdi:alarm-bell" if self.data["status"] == "active" else "mdi:alarm"
         return "mdi:reminder"

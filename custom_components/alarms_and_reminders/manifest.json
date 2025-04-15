@@ -10,7 +10,7 @@
   "codeowners": ["@omaramin-2000"],
   "config_flow": true,
   "iot_class": "local_push",
-  "homeassistant": "2025.4.1",
+  "homeassistant": "2025.4.2",
   "requirements": [
       "python-dateutil"
   ]
