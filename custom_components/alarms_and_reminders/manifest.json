@@ -2,7 +2,7 @@
   "domain": "alarms_and_reminders",
   "name": "Alarms and Reminders",
   "description": "Set alarms and reminders with custom sounds to ring on Home Assistant voice satellites",
-  "version": "v1.0.6-beta.1",
+  "version": "v1.0.5-beta.1",
   "slug": "alarms_and_reminders",
   "documentation": "https://github.com/omaramin-2000/HA-Alarms-and-Reminders",
   "issue_tracker": "https://github.com/omaramin-2000/HA-Alarms-and-Reminders/issues",
@@ -13,6 +13,7 @@
   "iot_class": "local_push",
   "homeassistant": "2025.4.2",
   "requirements": [
-      "python-dateutil"
+      "python-dateutil",
+      "aiofiles"
   ]
 }

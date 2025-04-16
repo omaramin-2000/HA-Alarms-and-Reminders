@@ -10,6 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN
 from .entity import AlarmReminderEntity
+from .storage import AlarmReminderStorage
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,21 +29,43 @@ class AlarmAndReminderCoordinator:
         self.async_add_entities = None
         self._alarm_counter = 0
         self._reminder_counter = 0
+        self.storage = AlarmReminderStorage(hass)
         
-        # Load existing items from states
-        for state in hass.states.async_all():
-            if state.entity_id.startswith(f"{DOMAIN}."):
-                item_id = state.entity_id.split(".")[-1]
-                if (state.state in ["scheduled", "active"] and 
-                    isinstance(state.attributes, dict)):
-                    self._active_items[item_id] = dict(state.attributes)
+        # Load existing items from states with better logging
+        _LOGGER.debug("Starting to load existing items")
+        try:
+            for state in hass.states.async_all():
+                if state.entity_id.startswith(f"{DOMAIN}."):
+                    item_id = state.entity_id.split(".")[-1]
+                    _LOGGER.debug("Found entity: %s with state: %s and attributes: %s", 
+                                 state.entity_id, state.state, state.attributes)
+                    
+                    # Convert the scheduled_time back to datetime if it exists
+                    attributes = dict(state.attributes)
+                    if "scheduled_time" in attributes:
+                        try:
+                            if isinstance(attributes["scheduled_time"], str):
+                                attributes["scheduled_time"] = dt_util.parse_datetime(
+                                    attributes["scheduled_time"]
+                                )
+                        except Exception as err:
+                            _LOGGER.error("Error parsing scheduled_time: %s", err)
+                    
+                    self._active_items[item_id] = attributes
                     if state.state == "active":
                         self._stop_events[item_id] = asyncio.Event()
-                    _LOGGER.debug("Loaded existing item: %s with state: %s", 
-                                item_id, state.state)
-        
-        _LOGGER.debug("Initialized coordinator with active items: %s", 
-                     self._active_items)
+                    
+                    # Update counters
+                    if attributes.get("is_alarm"):
+                        counter_num = int(item_id.split("_")[-1]) if item_id.startswith("alarm_") else 0
+                        self._alarm_counter = max(self._alarm_counter, counter_num)
+                    
+                    _LOGGER.debug("Loaded item: %s with attributes: %s", 
+                                item_id, self._active_items[item_id])
+            
+            _LOGGER.debug("Finished loading items. Active items: %s", self._active_items)
+        except Exception as err:
+            _LOGGER.error("Error loading existing items: %s", err, exc_info=True)
         
         # Ensure domain data structure exists
         if DOMAIN not in self.hass.data:
@@ -54,6 +77,29 @@ class AlarmAndReminderCoordinator:
                 self.hass.data[DOMAIN][config_entry.entry_id] = {}
             if "entities" not in self.hass.data[DOMAIN][config_entry.entry_id]:
                 self.hass.data[DOMAIN][config_entry.entry_id]["entities"] = []
+
+    async def async_load_items(self) -> None:
+        """Load items from storage."""
+        self._active_items = await self.storage.async_load()
+        _LOGGER.debug("Loaded items from storage: %s", self._active_items)
+        
+        # Recreate stop events for active items
+        for item_id, item in self._active_items.items():
+            if item["status"] == "active":
+                self._stop_events[item_id] = asyncio.Event()
+        
+        # Schedule active items
+        now = dt_util.now()
+        for item_id, item in self._active_items.items():
+            if item["status"] == "scheduled":
+                delay = (item["scheduled_time"] - now).total_seconds()
+                if delay > 0:
+                    self.hass.loop.call_later(
+                        delay,
+                        lambda: self.hass.async_create_task(
+                            self._trigger_item(item_id)
+                        )
+                    )
 
     async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
         """Schedule an alarm or reminder."""
@@ -137,11 +183,14 @@ class AlarmAndReminderCoordinator:
                 "unique_id": item_name
             }
             
-            # Store in active items
+            # Store in active items and save to storage
             self._active_items[item_name] = item_data
+            await self.storage.async_save(self._active_items)
             
-            # Create and register entity state
-            self.hass.states.async_set(entity_id, "scheduled", item_data)
+            # Create and register entity state with datetime conversion
+            state_data = dict(item_data)
+            state_data["scheduled_time"] = item_data["scheduled_time"].isoformat()
+            self.hass.states.async_set(entity_id, "scheduled", state_data)
             
             # Create entity object
             entity = AlarmReminderEntity(self.hass, item_name, item_data)
@@ -272,6 +321,9 @@ class AlarmAndReminderCoordinator:
             
             # Remove entity
             self.hass.states.async_remove(f"{DOMAIN}.{item_id}")
+            
+            # Remove from storage
+            await self.storage.async_delete_item(item_id)
             
             # Update sensors
             self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
@@ -428,18 +480,57 @@ class AlarmAndReminderCoordinator:
     async def edit_item(self, item_id: str, changes: dict, is_alarm: bool) -> None:
         """Edit an existing alarm or reminder."""
         try:
-            # Remove domain prefix if present
+            _LOGGER.debug("Starting edit request for %s", item_id)
+            _LOGGER.debug("Changes requested: %s", changes)
+            _LOGGER.debug("Current active items: %s", self._active_items)
+            _LOGGER.debug("Is alarm: %s", is_alarm)
+
+            # Print all states for our domain
+            all_states = [
+                state for state in self.hass.states.async_all() 
+                if state.entity_id.startswith(f"{DOMAIN}.")
+            ]
+            _LOGGER.debug("All states for domain %s: %s", DOMAIN, 
+                         [(s.entity_id, s.state, s.attributes) for s in all_states])
+
+            # Normalize item_id by removing domain prefix and converting to proper format
             if item_id.startswith(f"{DOMAIN}."):
                 item_id = item_id.split(".")[-1]
 
-            if item_id not in self._active_items:
-                _LOGGER.error("Item %s not found", item_id)
+            # Try multiple ways to find the item
+            found_id = None
+            # First try direct match
+            if item_id in self._active_items:
+                found_id = item_id
+            else:
+                # Try by entity_id
+                for aid, item in self._active_items.items():
+                    if (aid == item_id or 
+                        item.get("entity_id") == item_id or
+                        f"{DOMAIN}.{aid}" == item_id):
+                        found_id = aid
+                        break
+                
+                # If still not found, try by name
+                if not found_id:
+                    display_name = item_id.replace("_", " ")
+                    for aid, item in self._active_items.items():
+                        if item.get("name", "").lower() == display_name.lower():
+                            found_id = aid
+                            break
+
+            if not found_id:
+                _LOGGER.error("Item %s not found in active items: %s", 
+                             item_id,
+                             [f"{k} ({v.get('name', '')}, {v.get('status', '')})" 
+                              for k, v in self._active_items.items()])
                 return
 
-            item = self._active_items[item_id]
+            # Get the item data
+            item = self._active_items[found_id]
             
             # Verify item type matches
-            if item["is_alarm"] != is_alarm:
+            if item.get("is_alarm") != is_alarm:
                 _LOGGER.error(
                     "Cannot edit %s as %s", 
                     "alarm" if is_alarm else "reminder",
@@ -478,6 +569,9 @@ class AlarmAndReminderCoordinator:
 
             # Store updated item
             self._active_items[item_id] = item
+
+            # Save changes to storage
+            await self.storage.async_save(self._active_items)
 
             # Reschedule item
             delay = (item["scheduled_time"] - dt_util.now()).total_seconds()

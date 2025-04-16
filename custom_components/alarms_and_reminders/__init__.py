@@ -445,6 +445,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass, media_handler, announcer
         )
 
+        # Load saved items
+        await coordinator.async_load_items()
+
         # Store coordinator and initialize entities list
         hass.data[DOMAIN][entry.entry_id] = {
             "coordinator": coordinator,
