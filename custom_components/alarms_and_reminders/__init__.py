@@ -420,6 +420,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             hass.data[DOMAIN] = {}
             await async_setup_intents(hass)  # Only setup intents once
 
+        # Register delete services at the end of async_setup
+        hass.services.async_register(DOMAIN, SERVICE_DELETE_ALARM, async_delete_alarm)
+        hass.services.async_register(DOMAIN, SERVICE_DELETE_REMINDER, async_delete_reminder)
+        hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL_ALARMS, async_delete_all_alarms)
+        hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL_REMINDERS, async_delete_all_reminders)
+        hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL, async_delete_all)
+
         return True
 
     except Exception as err:
@@ -596,10 +603,3 @@ async def async_delete_all(call: ServiceCall):
             
     except Exception as err:
         _LOGGER.error("Error deleting all items: %s", err, exc_info=True)
-
-# Register the services
-hass.services.async_register(DOMAIN, SERVICE_DELETE_ALARM, async_delete_alarm)
-hass.services.async_register(DOMAIN, SERVICE_DELETE_REMINDER, async_delete_reminder)
-hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL_ALARMS, async_delete_all_alarms)
-hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL_REMINDERS, async_delete_all_reminders)
-hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL, async_delete_all)
