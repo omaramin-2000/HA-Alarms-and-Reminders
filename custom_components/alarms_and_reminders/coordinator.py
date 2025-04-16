@@ -482,42 +482,26 @@ class AlarmAndReminderCoordinator:
         try:
             _LOGGER.debug("Starting edit request for %s", item_id)
             _LOGGER.debug("Changes requested: %s", changes)
-            _LOGGER.debug("Current active items: %s", self._active_items)
-            _LOGGER.debug("Is alarm: %s", is_alarm)
+            _LOGGER.debug("Current active items: %s", 
+                         {k: {'name': v.get('name'), 'status': v.get('status')} 
+                          for k, v in self._active_items.items()})
 
-            # Print all states for our domain
-            all_states = [
-                state for state in self.hass.states.async_all() 
-                if state.entity_id.startswith(f"{DOMAIN}.")
-            ]
-            _LOGGER.debug("All states for domain %s: %s", DOMAIN, 
-                         [(s.entity_id, s.state, s.attributes) for s in all_states])
-
-            # Normalize item_id by removing domain prefix and converting to proper format
+            # Remove domain prefix if present
             if item_id.startswith(f"{DOMAIN}."):
                 item_id = item_id.split(".")[-1]
 
-            # Try multiple ways to find the item
+            # Try to find the item by ID or name
             found_id = None
-            # First try direct match
             if item_id in self._active_items:
                 found_id = item_id
             else:
-                # Try by entity_id
+                # Try by name
+                name_to_find = item_id.replace("_", " ").lower()
                 for aid, item in self._active_items.items():
-                    if (aid == item_id or 
-                        item.get("entity_id") == item_id or
-                        f"{DOMAIN}.{aid}" == item_id):
+                    if (item.get('name', '').lower() == name_to_find or 
+                        aid.lower() == name_to_find):
                         found_id = aid
                         break
-                
-                # If still not found, try by name
-                if not found_id:
-                    display_name = item_id.replace("_", " ")
-                    for aid, item in self._active_items.items():
-                        if item.get("name", "").lower() == display_name.lower():
-                            found_id = aid
-                            break
 
             if not found_id:
                 _LOGGER.error("Item %s not found in active items: %s", 
@@ -526,7 +510,6 @@ class AlarmAndReminderCoordinator:
                               for k, v in self._active_items.items()])
                 return
 
-            # Get the item data
             item = self._active_items[found_id]
             
             # Verify item type matches
@@ -538,7 +521,7 @@ class AlarmAndReminderCoordinator:
                 )
                 return
 
-            # Update time if provided
+            # Process changes
             if "time" in changes:
                 time_input = changes["time"]
                 if isinstance(time_input, str):
@@ -568,24 +551,14 @@ class AlarmAndReminderCoordinator:
                     item[field] = changes[field]
 
             # Store updated item
-            self._active_items[item_id] = item
-
-            # Save changes to storage
+            self._active_items[found_id] = item
+            
+            # Save to storage
             await self.storage.async_save(self._active_items)
-
-            # Reschedule item
-            delay = (item["scheduled_time"] - dt_util.now()).total_seconds()
-            if delay > 0:
-                self.hass.loop.call_later(
-                    delay,
-                    lambda: self.hass.async_create_task(
-                        self._trigger_item(item_id)
-                    )
-                )
 
             # Update entity state
             self.hass.states.async_set(
-                f"{DOMAIN}.{item_id}",
+                f"{DOMAIN}.{found_id}",
                 "scheduled",
                 item
             )
@@ -596,7 +569,7 @@ class AlarmAndReminderCoordinator:
             _LOGGER.info(
                 "Successfully edited %s: %s", 
                 "alarm" if is_alarm else "reminder",
-                item_id
+                found_id
             )
 
         except Exception as err:
