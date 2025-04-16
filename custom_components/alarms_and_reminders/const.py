@@ -16,6 +16,11 @@ SERVICE_STOP_ALL_REMINDERS = "stop_all_reminders"
 SERVICE_STOP_ALL = "stop_all"
 SERVICE_EDIT_ALARM = "edit_alarm"
 SERVICE_EDIT_REMINDER = "edit_reminder"
+SERVICE_DELETE_ALARM = "delete_alarm"
+SERVICE_DELETE_REMINDER = "delete_reminder"
+SERVICE_DELETE_ALL_ALARMS = "delete_all_alarms"
+SERVICE_DELETE_ALL_REMINDERS = "delete_all_reminders"
+SERVICE_DELETE_ALL = "delete_all"
 
 # Attributes
 ATTR_DATETIME = "datetime"      # A string containing the reminder time

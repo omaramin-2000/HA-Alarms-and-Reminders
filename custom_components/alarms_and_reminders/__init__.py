@@ -517,3 +517,89 @@ async def async_stop_all(call: ServiceCall):
             await coordinator.stop_all_items()
     except Exception as err:
         _LOGGER.error("Error stopping all items: %s", err)
+
+async def async_delete_alarm(call: ServiceCall):
+    """Handle delete alarm service call."""
+    try:
+        alarm_id = call.data.get("alarm_id")
+        coordinator = None
+        
+        for entry_id, data in hass.data[DOMAIN].items():
+            if isinstance(data, dict) and "coordinator" in data:
+                coordinator = data["coordinator"]
+                break
+        
+        if coordinator:
+            await coordinator.delete_item(alarm_id, is_alarm=True)
+            
+    except Exception as err:
+        _LOGGER.error("Error deleting alarm: %s", err, exc_info=True)
+
+async def async_delete_reminder(call: ServiceCall):
+    """Handle delete reminder service call."""
+    try:
+        reminder_id = call.data.get("reminder_id")
+        coordinator = None
+        
+        for entry_id, data in hass.data[DOMAIN].items():
+            if isinstance(data, dict) and "coordinator" in data:
+                coordinator = data["coordinator"]
+                break
+        
+        if coordinator:
+            await coordinator.delete_item(reminder_id, is_alarm=False)
+            
+    except Exception as err:
+        _LOGGER.error("Error deleting reminder: %s", err, exc_info=True)
+
+async def async_delete_all_alarms(call: ServiceCall):
+    """Handle delete all alarms service call."""
+    try:
+        coordinator = None
+        for entry_id, data in hass.data[DOMAIN].items():
+            if isinstance(data, dict) and "coordinator" in data:
+                coordinator = data["coordinator"]
+                break
+        
+        if coordinator:
+            await coordinator.delete_all_items(is_alarm=True)
+            
+    except Exception as err:
+        _LOGGER.error("Error deleting all alarms: %s", err, exc_info=True)
+
+async def async_delete_all_reminders(call: ServiceCall):
+    """Handle delete all reminders service call."""
+    try:
+        coordinator = None
+        for entry_id, data in hass.data[DOMAIN].items():
+            if isinstance(data, dict) and "coordinator" in data:
+                coordinator = data["coordinator"]
+                break
+        
+        if coordinator:
+            await coordinator.delete_all_items(is_alarm=False)
+            
+    except Exception as err:
+        _LOGGER.error("Error deleting all reminders: %s", err, exc_info=True)
+
+async def async_delete_all(call: ServiceCall):
+    """Handle delete all service call."""
+    try:
+        coordinator = None
+        for entry_id, data in hass.data[DOMAIN].items():
+            if isinstance(data, dict) and "coordinator" in data:
+                coordinator = data["coordinator"]
+                break
+        
+        if coordinator:
+            await coordinator.delete_all_items()
+            
+    except Exception as err:
+        _LOGGER.error("Error deleting all items: %s", err, exc_info=True)
+
+# Register the services
+hass.services.async_register(DOMAIN, SERVICE_DELETE_ALARM, async_delete_alarm)
+hass.services.async_register(DOMAIN, SERVICE_DELETE_REMINDER, async_delete_reminder)
+hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL_ALARMS, async_delete_all_alarms)
+hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL_REMINDERS, async_delete_all_reminders)
+hass.services.async_register(DOMAIN, SERVICE_DELETE_ALL, async_delete_all)

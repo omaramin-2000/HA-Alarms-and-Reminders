@@ -601,3 +601,86 @@ class AlarmAndReminderCoordinator:
 
         except Exception as err:
             _LOGGER.error("Error editing item %s: %s", item_id, err, exc_info=True)
+
+    async def delete_item(self, item_id: str, is_alarm: bool) -> None:
+        """Delete a specific item."""
+        try:
+            # Remove domain prefix if present
+            if item_id.startswith(f"{DOMAIN}."):
+                item_id = item_id.split(".")[-1]
+
+            if item_id not in self._active_items:
+                _LOGGER.warning("Item %s not found for deletion", item_id)
+                return
+
+            item = self._active_items[item_id]
+            
+            # Verify item type matches
+            if item["is_alarm"] != is_alarm:
+                _LOGGER.error(
+                    "Cannot delete %s as %s", 
+                    "alarm" if is_alarm else "reminder",
+                    "reminder" if is_alarm else "alarm"
+                )
+                return
+
+            # Stop if active
+            if item_id in self._stop_events:
+                self._stop_events[item_id].set()
+                await asyncio.sleep(0.1)
+                self._stop_events.pop(item_id)
+
+            # Remove from storage and active items
+            await self.storage.async_delete_item(item_id)
+            self._active_items.pop(item_id)
+
+            # Remove entity
+            self.hass.states.async_remove(f"{DOMAIN}.{item_id}")
+
+            # Force update of sensors
+            self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
+
+            _LOGGER.info(
+                "Successfully deleted %s: %s",
+                "alarm" if is_alarm else "reminder",
+                item_id
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error deleting item %s: %s", item_id, err, exc_info=True)
+
+    async def delete_all_items(self, is_alarm: bool = None) -> None:
+        """Delete all items. If is_alarm is None, deletes both alarms and reminders."""
+        try:
+            deleted_count = 0
+            for item_id in list(self._active_items.keys()):
+                item = self._active_items[item_id]
+                if is_alarm is None or item["is_alarm"] == is_alarm:
+                    # Stop if active
+                    if item_id in self._stop_events:
+                        self._stop_events[item_id].set()
+                        await asyncio.sleep(0.1)
+                        self._stop_events.pop(item_id)
+
+                    # Remove from storage and active items
+                    await self.storage.async_delete_item(item_id)
+                    self._active_items.pop(item_id)
+
+                    # Remove entity
+                    self.hass.states.async_remove(f"{DOMAIN}.{item_id}")
+                    
+                    deleted_count += 1
+
+            if deleted_count > 0:
+                # Force update of sensors
+                self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
+                _LOGGER.info(
+                    "Successfully deleted %d %s",
+                    deleted_count,
+                    "alarms" if is_alarm else "reminders" if is_alarm is not None else "items"
+                )
+            else:
+                _LOGGER.info("No items to delete")
+
+        except Exception as err:
+            _LOGGER.error("Error deleting all items: %s", err, exc_info=True)

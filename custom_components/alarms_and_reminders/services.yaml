@@ -361,3 +361,48 @@ edit_reminder:
       selector:
         entity:
           domain: media_player
+
+delete_alarm:
+  name: Delete Alarm
+  description: Delete a specific alarm
+  fields:
+    alarm_id:
+      name: Alarm ID
+      description: The ID of the alarm to delete
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            attributes:
+              is_alarm: true
+
+delete_reminder:
+  name: Delete Reminder
+  description: Delete a specific reminder
+  fields:
+    reminder_id:
+      name: Reminder ID
+      description: The ID of the reminder to delete
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            attributes:
+              is_alarm: false
+
+delete_all_alarms:
+  name: Delete All Alarms
+  description: Delete all alarms
+  fields: {}
+
+delete_all_reminders:
+  name: Delete All Reminders
+  description: Delete all reminders
+  fields: {}
+
+delete_all:
+  name: Delete All
+  description: Delete all alarms and reminders
+  fields: {}
