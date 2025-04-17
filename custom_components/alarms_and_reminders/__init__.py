@@ -530,13 +530,13 @@ async def async_stop_all(call: ServiceCall):
     except Exception as err:
         _LOGGER.error("Error stopping all items: %s", err)
 
-async def async_delete_alarm(hass: HomeAssistant, call: ServiceCall) -> None:
+async def async_delete_alarm(call: ServiceCall) -> None:
     """Handle delete alarm service call."""
     try:
         alarm_id = call.data.get("alarm_id")
         coordinator = None
         
-        for entry_id, data in hass.data[DOMAIN].items():
+        for entry_id, data in call.data[DOMAIN].items():
             if isinstance(data, dict) and "coordinator" in data:
                 coordinator = data["coordinator"]
                 break
@@ -547,13 +547,13 @@ async def async_delete_alarm(hass: HomeAssistant, call: ServiceCall) -> None:
     except Exception as err:
         _LOGGER.error("Error deleting alarm: %s", err, exc_info=True)
 
-async def async_delete_reminder(hass: HomeAssistant, call: ServiceCall) -> None:
+async def async_delete_reminder(call: ServiceCall) -> None:
     """Handle delete reminder service call."""
     try:
         reminder_id = call.data.get("reminder_id")
         coordinator = None
         
-        for entry_id, data in hass.data[DOMAIN].items():
+        for entry_id, data in call.data[DOMAIN].items():
             if isinstance(data, dict) and "coordinator" in data:
                 coordinator = data["coordinator"]
                 break
@@ -564,11 +564,11 @@ async def async_delete_reminder(hass: HomeAssistant, call: ServiceCall) -> None:
     except Exception as err:
         _LOGGER.error("Error deleting reminder: %s", err, exc_info=True)
 
-async def async_delete_all_alarms(hass: HomeAssistant, call: ServiceCall) -> None:
+async def async_delete_all_alarms(call: ServiceCall) -> None:
     """Handle delete all alarms service call."""
     try:
         coordinator = None
-        for entry_id, data in hass.data[DOMAIN].items():
+        for entry_id, data in call.data[DOMAIN].items():
             if isinstance(data, dict) and "coordinator" in data:
                 coordinator = data["coordinator"]
                 break
@@ -579,11 +579,11 @@ async def async_delete_all_alarms(hass: HomeAssistant, call: ServiceCall) -> Non
     except Exception as err:
         _LOGGER.error("Error deleting all alarms: %s", err, exc_info=True)
 
-async def async_delete_all_reminders(hass: HomeAssistant, call: ServiceCall) -> None:
+async def async_delete_all_reminders(call: ServiceCall) -> None:
     """Handle delete all reminders service call."""
     try:
         coordinator = None
-        for entry_id, data in hass.data[DOMAIN].items():
+        for entry_id, data in call.data[DOMAIN].items():
             if isinstance(data, dict) and "coordinator" in data:
                 coordinator = data["coordinator"]
                 break
@@ -594,11 +594,11 @@ async def async_delete_all_reminders(hass: HomeAssistant, call: ServiceCall) -> 
     except Exception as err:
         _LOGGER.error("Error deleting all reminders: %s", err, exc_info=True)
 
-async def async_delete_all(hass: HomeAssistant, call: ServiceCall) -> None:
+async def async_delete_all(call: ServiceCall) -> None:
     """Handle delete all service call."""
     try:
         coordinator = None
-        for entry_id, data in hass.data[DOMAIN].items():
+        for entry_id, data in call.data[DOMAIN].items():
             if isinstance(data, dict) and "coordinator" in data:
                 coordinator = data["coordinator"]
                 break
