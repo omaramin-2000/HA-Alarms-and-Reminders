@@ -34,6 +34,8 @@ This integration is actively being developed. Future updates will include:
 
 ## Installation
 
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=omaramin-2000&repository=HA-Alarms-and-Reminders&category=integration)
+
 1. Install via HACS:
    - Add this repository as a custom repository in HACS
    - Install the integration
