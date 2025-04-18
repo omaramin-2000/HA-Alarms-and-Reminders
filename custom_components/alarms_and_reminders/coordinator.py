@@ -477,10 +477,7 @@ class AlarmAndReminderCoordinator:
                 return
                     
             item = self._active_items[item_id]
-                
-            # Debug log current state and item data
-            _LOGGER.debug("Current item data: %s", item)
-                
+            
             # Verify item type matches
             if item["is_alarm"] != is_alarm:
                 _LOGGER.error(
@@ -490,12 +487,16 @@ class AlarmAndReminderCoordinator:
                 )
                 return
 
-            # Stop current playback if there's an active stop event
+            # First stop the current announcement
             if item_id in self._stop_events:
                 _LOGGER.debug("Stopping current playback for %s", item_id)
-                self._stop_events[item_id].set()
-                await asyncio.sleep(0.1)  # Give time for the playback to stop
-                self._stop_events.pop(item_id)
+                stop_event = self._stop_events[item_id]
+                stop_event.set()  # Signal stop
+                await asyncio.sleep(0.1)  # Give time for playback to stop
+                self._stop_events.pop(item_id)  # Remove the stop event
+                
+                # Wait a bit more to ensure announcement fully stops
+                await asyncio.sleep(0.5)
 
             # Calculate new time
             now = dt_util.now()
@@ -503,21 +504,13 @@ class AlarmAndReminderCoordinator:
             
             # Update item data
             item["scheduled_time"] = new_time
-            item["status"] = "scheduled"  # Set status to scheduled
+            item["status"] = "scheduled"
             self._active_items[item_id] = item
             
-            # Debug log updated data
-            _LOGGER.debug("Updated item data: %s", item)
+            # Save to storage first
+            await self.storage.async_save(self._active_items)
             
-            # Save to storage
-            try:
-                await self.storage.async_save(self._active_items)
-                _LOGGER.debug("Successfully saved to storage")
-            except Exception as storage_err:
-                _LOGGER.error("Error saving to storage: %s", storage_err, exc_info=True)
-                raise
-            
-            # Update entity state with ISO formatted time
+            # Update entity state
             state_data = dict(item)
             state_data["scheduled_time"] = item["scheduled_time"].isoformat()
             self.hass.states.async_set(
@@ -525,12 +518,6 @@ class AlarmAndReminderCoordinator:
                 "scheduled",
                 state_data
             )
-            
-            # Cancel any existing trigger tasks
-            for task in asyncio.all_tasks():
-                if task.get_name() == f"trigger_{item_id}":
-                    task.cancel()
-                    await asyncio.sleep(0.1)  # Give time for task to cancel
 
             # Schedule new trigger
             delay = (new_time - now).total_seconds()
@@ -552,14 +539,6 @@ class AlarmAndReminderCoordinator:
 
         except Exception as err:
             _LOGGER.error("Error snoozing item %s: %s", item_id, err, exc_info=True)
-            # Try to revert any partial changes
-            if item_id in self._active_items:
-                self._active_items[item_id]["status"] = "error"
-                self.hass.states.async_set(
-                    f"{DOMAIN}.{item_id}",
-                    "error",
-                    self._active_items[item_id]
-                )
 
     async def stop_all_items(self, is_alarm: bool = None) -> None:
         """Stop all active items. If is_alarm is None, stops both alarms and reminders."""
