@@ -466,11 +466,11 @@ class AlarmAndReminderCoordinator:
                 )
                 return
 
-            # Stop current playback
+            # Stop current playback if there's an active stop event
             if item_id in self._stop_events:
                 _LOGGER.debug("Stopping current playback for %s", item_id)
                 self._stop_events[item_id].set()
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.1)  # Give time for the playback to stop
                 self._stop_events.pop(item_id)
 
             # Calculate new time
@@ -479,47 +479,44 @@ class AlarmAndReminderCoordinator:
             
             # Update item data
             item["scheduled_time"] = new_time
-            item["status"] = "scheduled"
+            item["status"] = "scheduled"  # Set status to scheduled
             self._active_items[item_id] = item
             
-            # Debug log updated data before saving
-            _LOGGER.debug("Updated item data before saving: %s", item)
+            # Debug log updated data
+            _LOGGER.debug("Updated item data: %s", item)
             
-            # Save to storage first
+            # Save to storage
             try:
                 await self.storage.async_save(self._active_items)
                 _LOGGER.debug("Successfully saved to storage")
             except Exception as storage_err:
                 _LOGGER.error("Error saving to storage: %s", storage_err, exc_info=True)
                 raise
-                
-            # Update entity state
-            try:
-                state_data = dict(item)
-                state_data["scheduled_time"] = item["scheduled_time"].isoformat()
-                self.hass.states.async_set(
-                    f"{DOMAIN}.{item_id}",
-                    "scheduled",
-                    state_data
-                )
-                _LOGGER.debug("Successfully updated entity state")
-            except Exception as state_err:
-                _LOGGER.error("Error updating entity state: %s", state_err, exc_info=True)
-                raise
+            
+            # Update entity state with ISO formatted time
+            state_data = dict(item)
+            state_data["scheduled_time"] = item["scheduled_time"].isoformat()
+            self.hass.states.async_set(
+                f"{DOMAIN}.{item_id}",
+                "scheduled",
+                state_data
+            )
+            
+            # Cancel any existing trigger tasks
+            for task in asyncio.all_tasks():
+                if task.get_name() == f"trigger_{item_id}":
+                    task.cancel()
+                    await asyncio.sleep(0.1)  # Give time for task to cancel
 
             # Schedule new trigger
-            try:
-                delay = (new_time - now).total_seconds()
-                self.hass.loop.call_later(
-                    delay,
-                    lambda: self.hass.async_create_task(
-                        self._trigger_item(item_id)
-                    )
+            delay = (new_time - now).total_seconds()
+            self.hass.loop.call_later(
+                delay,
+                lambda: self.hass.async_create_task(
+                    self._trigger_item(item_id),
+                    name=f"trigger_{item_id}"
                 )
-                _LOGGER.debug("Successfully scheduled new trigger for %s seconds later", delay)
-            except Exception as schedule_err:
-                _LOGGER.error("Error scheduling new trigger: %s", schedule_err, exc_info=True)
-                raise
+            )
 
             _LOGGER.info(
                 "Successfully snoozed %s %s for %d minutes. Will ring at %s",
