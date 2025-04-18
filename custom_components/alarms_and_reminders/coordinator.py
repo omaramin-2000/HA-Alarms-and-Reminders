@@ -227,10 +227,23 @@ class AlarmAndReminderCoordinator:
 
         try:
             item = self._active_items[item_id]
+            
+            # Set status to active first
             item["status"] = "active"
-            stop_event = self._stop_events.get(item_id)
+            self._active_items[item_id] = item
+            
+            # Update entity state immediately
+            self.hass.states.async_set(
+                f"{DOMAIN}.{item_id}",
+                "active",
+                item
+            )
+            
+            # Create new stop event
+            stop_event = asyncio.Event()
+            self._stop_events[item_id] = stop_event
 
-            # Start playback loop
+            # Start playback loop based on target type
             if item["satellite"]:
                 await self._satellite_playback_loop(item, stop_event)
             elif item["media_players"]:
@@ -239,6 +252,7 @@ class AlarmAndReminderCoordinator:
         except Exception as err:
             _LOGGER.error("Error triggering item %s: %s", item_id, err)
             item["status"] = "error"
+            self.hass.states.async_set(f"{DOMAIN}.{item_id}", "error", item)
 
     async def _satellite_playback_loop(self, item: dict, stop_event: asyncio.Event) -> None:
         """Handle satellite playback loop."""
@@ -438,9 +452,13 @@ class AlarmAndReminderCoordinator:
                 
             item = self._active_items[item_id]
             
+            # Debug log current state
+            _LOGGER.debug("Attempting to snooze item %s with status %s", item_id, item.get("status"))
+            
             # Verify item is active and type matches
             if item["status"] != "active":
-                _LOGGER.warning("Cannot snooze item %s - not active", item_id)
+                _LOGGER.warning("Cannot snooze item %s - not active (current status: %s)", 
+                              item_id, item["status"])
                 return
                 
             if item["is_alarm"] != is_alarm:
@@ -453,6 +471,7 @@ class AlarmAndReminderCoordinator:
 
             # Stop current playback
             if item_id in self._stop_events:
+                _LOGGER.debug("Stopping current playback for %s", item_id)
                 self._stop_events[item_id].set()
                 await asyncio.sleep(0.1)
                 self._stop_events.pop(item_id)
@@ -460,6 +479,8 @@ class AlarmAndReminderCoordinator:
             # Calculate new time
             now = dt_util.now()
             new_time = now + timedelta(minutes=minutes)
+            
+            # Update item data
             item["scheduled_time"] = new_time
             item["status"] = "scheduled"
             
@@ -484,10 +505,11 @@ class AlarmAndReminderCoordinator:
             )
 
             _LOGGER.info(
-                "Successfully snoozed %s %s for %d minutes",
+                "Successfully snoozed %s %s for %d minutes. Will ring at %s",
                 "alarm" if is_alarm else "reminder",
                 item_id,
-                minutes
+                minutes,
+                new_time.strftime("%H:%M:%S")
             )
 
         except Exception as err:

@@ -179,6 +179,7 @@ snooze_alarm:
       selector:
         entity:
           domain: alarms_and_reminders
+          integration: alarms_and_reminders
           filter:
             state: active
             attributes:
@@ -223,6 +224,7 @@ snooze_reminder:
       selector:
         entity:
           domain: alarms_and_reminders
+          integration: alarms_and_reminders
           filter:
             state: active
             attributes:
