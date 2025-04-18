@@ -446,21 +446,18 @@ class AlarmAndReminderCoordinator:
             if item_id.startswith(f"{DOMAIN}."):
                 item_id = item_id.split(".")[-1]
                 
+            _LOGGER.debug("Attempting to snooze item %s for %d minutes", item_id, minutes)
+                
             if item_id not in self._active_items:
                 _LOGGER.warning("Item %s not found in active items: %s", item_id, self._active_items.keys())
                 return
-                
+                    
             item = self._active_items[item_id]
-            
-            # Debug log current state
-            _LOGGER.debug("Attempting to snooze item %s with status %s", item_id, item.get("status"))
-            
-            # Verify item is active and type matches
-            if item["status"] != "active":
-                _LOGGER.warning("Cannot snooze item %s - not active (current status: %s)", 
-                              item_id, item["status"])
-                return
                 
+            # Debug log current state and item data
+            _LOGGER.debug("Current item data: %s", item)
+                
+            # Verify item type matches
             if item["is_alarm"] != is_alarm:
                 _LOGGER.error(
                     "Cannot snooze %s as %s",
@@ -483,26 +480,46 @@ class AlarmAndReminderCoordinator:
             # Update item data
             item["scheduled_time"] = new_time
             item["status"] = "scheduled"
-            
-            # Update storage and state
             self._active_items[item_id] = item
-            await self.storage.async_save(self._active_items)
             
+            # Debug log updated data before saving
+            _LOGGER.debug("Updated item data before saving: %s", item)
+            
+            # Save to storage first
+            try:
+                await self.storage.async_save(self._active_items)
+                _LOGGER.debug("Successfully saved to storage")
+            except Exception as storage_err:
+                _LOGGER.error("Error saving to storage: %s", storage_err, exc_info=True)
+                raise
+                
             # Update entity state
-            self.hass.states.async_set(
-                f"{DOMAIN}.{item_id}",
-                "scheduled",
-                item
-            )
+            try:
+                state_data = dict(item)
+                state_data["scheduled_time"] = item["scheduled_time"].isoformat()
+                self.hass.states.async_set(
+                    f"{DOMAIN}.{item_id}",
+                    "scheduled",
+                    state_data
+                )
+                _LOGGER.debug("Successfully updated entity state")
+            except Exception as state_err:
+                _LOGGER.error("Error updating entity state: %s", state_err, exc_info=True)
+                raise
 
             # Schedule new trigger
-            delay = (new_time - now).total_seconds()
-            self.hass.loop.call_later(
-                delay,
-                lambda: self.hass.async_create_task(
-                    self._trigger_item(item_id)
+            try:
+                delay = (new_time - now).total_seconds()
+                self.hass.loop.call_later(
+                    delay,
+                    lambda: self.hass.async_create_task(
+                        self._trigger_item(item_id)
+                    )
                 )
-            )
+                _LOGGER.debug("Successfully scheduled new trigger for %s seconds later", delay)
+            except Exception as schedule_err:
+                _LOGGER.error("Error scheduling new trigger: %s", schedule_err, exc_info=True)
+                raise
 
             _LOGGER.info(
                 "Successfully snoozed %s %s for %d minutes. Will ring at %s",
@@ -514,6 +531,14 @@ class AlarmAndReminderCoordinator:
 
         except Exception as err:
             _LOGGER.error("Error snoozing item %s: %s", item_id, err, exc_info=True)
+            # Try to revert any partial changes
+            if item_id in self._active_items:
+                self._active_items[item_id]["status"] = "error"
+                self.hass.states.async_set(
+                    f"{DOMAIN}.{item_id}",
+                    "error",
+                    self._active_items[item_id]
+                )
 
     async def stop_all_items(self, is_alarm: bool = None) -> None:
         """Stop all active items. If is_alarm is None, stops both alarms and reminders."""
