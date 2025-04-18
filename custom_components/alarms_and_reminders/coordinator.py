@@ -259,16 +259,22 @@ class AlarmAndReminderCoordinator:
         try:
             # Get appropriate sound file
             sound_file = self.media_handler.alarm_sound if item["is_alarm"] else self.media_handler.reminder_sound
-
-            # Use announcer to handle satellite playback
-            await self.announcer.announce_on_satellite(
-                satellite=item["satellite"],
-                message=item["message"],
-                sound_file=sound_file,
-                stop_event=stop_event,
-                name=item["name"],  # Use the generated/provided name
-                is_alarm=item["is_alarm"]
-            )
+            
+            # Check if item is still active before starting playback
+            item_id = item["entity_id"]
+            if item_id in self._active_items and self._active_items[item_id]["status"] == "active":
+                await self.announcer.announce_on_satellite(
+                    satellite=item["satellite"],
+                    message=item["message"],
+                    sound_file=sound_file,
+                    stop_event=stop_event,
+                    name=item["name"], # Use the generated/provided name
+                    is_alarm=item["is_alarm"]
+                )
+            else:
+                _LOGGER.debug("Item %s is no longer active, stopping playback", item_id)
+                if stop_event:
+                    stop_event.set()
 
         except Exception as err:
             _LOGGER.error("Error in satellite playback loop: %s", err)
@@ -276,11 +282,24 @@ class AlarmAndReminderCoordinator:
 
     async def _media_player_playback_loop(self, item: dict, stop_event: asyncio.Event) -> None:
         """Handle media player playback loop."""
+        item_id = item["entity_id"]
+        
         while not stop_event.is_set():
             try:
+                # Check if item is still active
+                if item_id not in self._active_items or self._active_items[item_id]["status"] != "active":
+                    _LOGGER.debug("Item %s is no longer active, stopping playback loop", item_id)
+                    stop_event.set()
+                    break
+
                 for media_player in item["media_players"]:
                     # Wait for media player to be idle
                     while not await self._is_media_player_idle(media_player):
+                        # Check status again while waiting
+                        if (item_id not in self._active_items or 
+                            self._active_items[item_id]["status"] != "active"):
+                            stop_event.set()
+                            return
                         await asyncio.sleep(1)
 
                     # Format message with current time
@@ -299,6 +318,11 @@ class AlarmAndReminderCoordinator:
                     await asyncio.wait_for(stop_event.wait(), timeout=60)
                     break
                 except asyncio.TimeoutError:
+                    # Check status before continuing
+                    if (item_id not in self._active_items or 
+                        self._active_items[item_id]["status"] != "active"):
+                        stop_event.set()
+                        break
                     continue
 
             except Exception as err:
