@@ -427,16 +427,71 @@ class AlarmAndReminderCoordinator:
 
     async def snooze_item(self, item_id: str, minutes: int, is_alarm: bool) -> None:
         """Snooze an active item."""
-        if item_id in self._active_items:
-            await self.media_handler.snooze_alarm(item_id, minutes)
-            _LOGGER.info(
-                "Successfully snoozed %s for %d minutes: %s", 
-                "alarm" if is_alarm else "reminder",
-                minutes,
-                item_id
+        try:
+            # Remove domain prefix if present
+            if item_id.startswith(f"{DOMAIN}."):
+                item_id = item_id.split(".")[-1]
+                
+            if item_id not in self._active_items:
+                _LOGGER.warning("Item %s not found in active items: %s", item_id, self._active_items.keys())
+                return
+                
+            item = self._active_items[item_id]
+            
+            # Verify item is active and type matches
+            if item["status"] != "active":
+                _LOGGER.warning("Cannot snooze item %s - not active", item_id)
+                return
+                
+            if item["is_alarm"] != is_alarm:
+                _LOGGER.error(
+                    "Cannot snooze %s as %s",
+                    "alarm" if is_alarm else "reminder",
+                    "reminder" if is_alarm else "alarm"
+                )
+                return
+
+            # Stop current playback
+            if item_id in self._stop_events:
+                self._stop_events[item_id].set()
+                await asyncio.sleep(0.1)
+                self._stop_events.pop(item_id)
+
+            # Calculate new time
+            now = dt_util.now()
+            new_time = now + timedelta(minutes=minutes)
+            item["scheduled_time"] = new_time
+            item["status"] = "scheduled"
+            
+            # Update storage and state
+            self._active_items[item_id] = item
+            await self.storage.async_save(self._active_items)
+            
+            # Update entity state
+            self.hass.states.async_set(
+                f"{DOMAIN}.{item_id}",
+                "scheduled",
+                item
             )
-        else:
-            _LOGGER.warning("Item %s not found in active items: %s", item_id, self._active_items.keys())
+
+            # Schedule new trigger
+            delay = (new_time - now).total_seconds()
+            self.hass.loop.call_later(
+                delay,
+                lambda: self.hass.async_create_task(
+                    self._trigger_item(item_id)
+                )
+            )
+
+            _LOGGER.info(
+                "Successfully snoozed %s %s for %d minutes",
+                "alarm" if is_alarm else "reminder",
+                item_id,
+                minutes
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error snoozing item %s: %s", item_id, err, exc_info=True)
 
     async def stop_all_items(self, is_alarm: bool = None) -> None:
         """Stop all active items. If is_alarm is None, stops both alarms and reminders."""

@@ -160,24 +160,29 @@ stop_alarm:
 
 snooze_alarm:
   name: Snooze Alarm
-  description: Snooze an active alarm
+  description: Snooze a ringing alarm
   fields:
-    alarm_id:
-      name: Alarm ID
-      description: ID of the alarm to snooze
-      required: true
-      example: "alarm_1"
-      selector:
-        text:
     minutes:
       name: Minutes
       description: Number of minutes to snooze
       default: 5
+      required: false
       selector:
         number:
           min: 1
           max: 60
-          step: 1
+          unit_of_measurement: minutes
+    alarm_id:
+      name: Alarm
+      description: The alarm to snooze
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            state: active
+            attributes:
+              is_alarm: true
 
 stop_reminder:
   name: Stop Reminder
@@ -198,15 +203,30 @@ stop_reminder:
               is_alarm: false
 
 snooze_reminder:
-  description: Snooze an active reminder
+  name: Snooze Reminder
+  description: Snooze a ringing reminder
   fields:
-    reminder_id:
-      description: ID of the reminder to snooze
-      example: "reminder_123"
     minutes:
+      name: Minutes
       description: Number of minutes to snooze
-      example: 5
       default: 5
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: minutes
+    reminder_id:
+      name: Reminder
+      description: The reminder to snooze
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            state: active
+            attributes:
+              is_alarm: false
 
 stop:
   name: Stop

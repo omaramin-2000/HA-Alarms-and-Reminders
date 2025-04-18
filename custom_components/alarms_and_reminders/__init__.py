@@ -554,6 +554,71 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             schema=vol.Schema({})
         )
 
+        async def async_snooze_alarm(call: ServiceCall) -> None:
+            """Handle snooze alarm service call."""
+            try:
+                alarm_id = call.data.get("alarm_id")
+                minutes = call.data.get("minutes", DEFAULT_SNOOZE_MINUTES)
+                coordinator = None
+                
+                for entry_id, data in hass.data[DOMAIN].items():
+                    if isinstance(data, dict) and "coordinator" in data:
+                        coordinator = data["coordinator"]
+                        break
+                
+                if coordinator:
+                    await coordinator.snooze_item(alarm_id, minutes, is_alarm=True)
+                else:
+                    _LOGGER.error("No coordinator found")
+                    
+            except Exception as err:
+                _LOGGER.error("Error snoozing alarm: %s", err, exc_info=True)
+
+        async def async_snooze_reminder(call: ServiceCall) -> None:
+            """Handle snooze reminder service call."""
+            try:
+                reminder_id = call.data.get("reminder_id")
+                minutes = call.data.get("minutes", DEFAULT_SNOOZE_MINUTES)
+                coordinator = None
+                
+                for entry_id, data in hass.data[DOMAIN].items():
+                    if isinstance(data, dict) and "coordinator" in data:
+                        coordinator = data["coordinator"]
+                        break
+                
+                if coordinator:
+                    await coordinator.snooze_item(reminder_id, minutes, is_alarm=False)
+                else:
+                    _LOGGER.error("No coordinator found")
+                    
+            except Exception as err:
+                _LOGGER.error("Error snoozing reminder: %s", err, exc_info=True)
+
+        # Register snooze services
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SNOOZE_ALARM,
+            async_snooze_alarm,
+            schema=vol.Schema({
+                vol.Required("alarm_id"): cv.entity_id,
+                vol.Optional("minutes", default=DEFAULT_SNOOZE_MINUTES): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=60)
+                ),
+            })
+        )
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SNOOZE_REMINDER,
+            async_snooze_reminder,
+            schema=vol.Schema({
+                vol.Required("reminder_id"): cv.entity_id,
+                vol.Optional("minutes", default=DEFAULT_SNOOZE_MINUTES): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=60)
+                ),
+            })
+        )
+
         return True
 
     except Exception as err:
