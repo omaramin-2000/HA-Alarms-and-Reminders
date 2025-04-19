@@ -169,7 +169,7 @@ snooze_alarm:
       required: false
       selector:
         number:
-          min: 1
+          min: 5
           max: 60
           unit_of_measurement: minutes
     alarm_id:
@@ -214,7 +214,7 @@ snooze_reminder:
       required: false
       selector:
         number:
-          min: 1
+          min: 5
           max: 60
           unit_of_measurement: minutes
     reminder_id:
