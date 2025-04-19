@@ -428,3 +428,97 @@ delete_all:
   name: Delete All
   description: Delete all alarms and reminders
   fields: {}
+
+reschedule_alarm:
+  name: Reschedule Alarm
+  description: Reschedule a stopped or completed alarm
+  fields:
+    alarm_id:
+      name: Alarm
+      description: The alarm to reschedule
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            attributes:
+              is_alarm: true
+    time:
+      name: Time
+      description: New time for the alarm (optional)
+      required: false
+      selector:
+        time: {}
+    date:
+      name: Date
+      description: New date for the alarm (optional)
+      required: false
+      selector:
+        date: {}
+    message:
+      name: Message
+      description: New message (optional)
+      required: false
+      selector:
+        text: {}
+    satellite:
+      name: Satellite
+      description: New satellite (optional)
+      required: false
+      selector:
+        entity:
+          domain: assist_satellite
+    media_player:
+      name: Media Player
+      description: New media player (optional)
+      required: false
+      selector:
+        entity:
+          domain: media_player
+
+reschedule_reminder:
+  name: Reschedule Reminder
+  description: Reschedule a stopped or completed reminder
+  fields:
+    reminder_id:
+      name: Reminder
+      description: The reminder to reschedule
+      required: true
+      selector:
+        entity:
+          domain: alarms_and_reminders
+          filter:
+            attributes:
+              is_alarm: false
+    time:
+      name: Time
+      description: New time for the reminder (optional)
+      required: false
+      selector:
+        time: {}
+    date:
+      name: Date
+      description: New date for the reminder (optional)
+      required: false
+      selector:
+        date: {}
+    message:
+      name: Message
+      description: New message (optional)
+      required: false
+      selector:
+        text: {}
+    satellite:
+      name: Satellite
+      description: New satellite (optional)
+      required: false
+      selector:
+        entity:
+          domain: assist_satellite
+    media_player:
+      name: Media Player
+      description: New media player (optional)
+      required: false
+      selector:
+        entity:
+          domain: media_player

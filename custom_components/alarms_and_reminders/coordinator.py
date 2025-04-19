@@ -367,7 +367,7 @@ class AlarmAndReminderCoordinator:
             self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
 
     async def stop_item(self, item_id: str, is_alarm: bool) -> None:
-        """Stop an active item."""
+        """Stop an active or scheduled item."""
         try:
             _LOGGER.debug("Stop request for %s. Current active items: %s", 
                          item_id, 
@@ -393,72 +393,51 @@ class AlarmAndReminderCoordinator:
 
             if found_id:
                 item = self._active_items[found_id]
-                _LOGGER.debug("Found item to stop: %s", item)
                 
-                # Remove domain prefix if present
-                if item_id.startswith(f"{DOMAIN}."):
-                    item_id = item_id.split(".")[-1]
-
-                _LOGGER.debug("Attempting to stop item %s (is_alarm=%s). Active items: %s", 
-                            item_id, is_alarm, self._active_items)
-
-                # Try to find the item by ID first
-                if item_id in self._active_items:
-                    found_id = item_id
-                else:
-                    # Try to find by display name or entity_id
-                    display_name = item_id.replace("_", " ")
-                    found_id = next(
-                        (aid for aid, item in self._active_items.items()
-                        if item["name"].lower() == display_name.lower() or 
-                        item["entity_id"] == item_id),
-                        None
-                    )
-
-                if found_id and found_id in self._active_items:
-                    item = self._active_items[found_id]
-                    
-                    # Check if item type matches
-                    if item["is_alarm"] != is_alarm:
-                        _LOGGER.warning(
-                            "Attempted to stop %s with wrong service: %s", 
-                            "alarm" if item["is_alarm"] else "reminder",
-                            found_id
-                        )
-                        return
-
-                    # Stop the item
-                    if found_id in self._stop_events:
-                        self._stop_events[found_id].set()
-                        await asyncio.sleep(0.1)
-                        self._stop_events.pop(found_id)
-                    
-                    # Update item status
-                    item["status"] = "stopped"
-                    
-                    # Update entity state
-                    self.hass.states.async_set(
-                        f"{DOMAIN}.{found_id}",
-                        "stopped",
-                        item
-                    )
-
-                    # Force update of sensors
-                    self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
-
-                    _LOGGER.info(
-                        "Successfully stopped %s: %s", 
-                        "alarm" if is_alarm else "reminder",
+                # Verify item type matches
+                if item["is_alarm"] != is_alarm:
+                    _LOGGER.warning(
+                        "Attempted to stop %s with wrong service: %s", 
+                        "alarm" if item["is_alarm"] else "reminder",
                         found_id
                     )
+                    return
 
-                else:
-                    _LOGGER.warning(
-                        "Item %s not found in active items: %s", 
-                        item_id, 
-                        [f"{k} ({v.get('name', '')}, {v.get('status', '')})" 
-                        for k, v in self._active_items.items()]
-                    )
+                # Stop any active playback
+                if found_id in self._stop_events:
+                    self._stop_events[found_id].set()
+                    await asyncio.sleep(0.1)
+                    self._stop_events.pop(found_id)
+                
+                # Update item status without deleting
+                item["status"] = "stopped"
+                item["last_stopped"] = dt_util.now().isoformat()
+                
+                # Save to storage
+                await self.storage.async_save(self._active_items)
+                
+                # Update entity state
+                self.hass.states.async_set(
+                    f"{DOMAIN}.{found_id}",
+                    "stopped",
+                    item
+                )
+
+                # Force update of sensors
+                self.hass.bus.async_fire(f"{DOMAIN}_state_changed")
+
+                _LOGGER.info(
+                    "Successfully stopped %s: %s", 
+                    "alarm" if is_alarm else "reminder",
+                    found_id
+                )
+            else:
+                _LOGGER.warning(
+                    "Item %s not found in active items: %s", 
+                    item_id, 
+                    [f"{k} ({v.get('name', '')}, {v.get('status', '')})" 
+                     for k, v in self._active_items.items()]
+                )
 
         except Exception as err:
             _LOGGER.error("Error stopping item %s: %s", item_id, err, exc_info=True)
@@ -759,3 +738,82 @@ class AlarmAndReminderCoordinator:
 
         except Exception as err:
             _LOGGER.error("Error deleting all items: %s", err, exc_info=True)
+
+    async def reschedule_item(self, item_id: str, changes: dict, is_alarm: bool) -> None:
+        """Reschedule a stopped or completed item."""
+        try:
+            # Remove domain prefix if present
+            if item_id.startswith(f"{DOMAIN}."):
+                item_id = item_id.split(".")[-1]
+                
+            if item_id not in self._active_items:
+                _LOGGER.error("Item %s not found", item_id)
+                return
+                
+            item = self._active_items[item_id]
+            
+            # Verify item type matches
+            if item["is_alarm"] != is_alarm:
+                _LOGGER.error(
+                    "Cannot reschedule %s as %s",
+                    "alarm" if is_alarm else "reminder",
+                    "reminder" if is_alarm else "alarm"
+                )
+                return
+
+            # Calculate new scheduled time
+            now = dt_util.now()
+            if "time" in changes or "date" in changes:
+                time_input = changes.get("time", item["scheduled_time"].time())
+                date_input = changes.get("date", now.date())
+                new_time = datetime.combine(date_input, time_input)
+                new_time = dt_util.as_local(new_time)
+                
+                # Validate future time
+                if new_time < now:
+                    if "date" not in changes:  # Only adjust if date wasn't explicitly set
+                        new_time = new_time + timedelta(days=1)
+                
+                item["scheduled_time"] = new_time
+            
+            # Update other fields if provided
+            for field in ["message", "satellite", "media_player"]:
+                if field in changes:
+                    item[field] = changes[field]
+
+            # Update status
+            item["status"] = "scheduled"
+            if "last_stopped" in item:
+                item["last_rescheduled_from"] = item["last_stopped"]
+            
+            # Save changes
+            self._active_items[item_id] = item
+            await self.storage.async_save(self._active_items)
+            
+            # Update entity state
+            state_data = dict(item)
+            state_data["scheduled_time"] = item["scheduled_time"].isoformat()
+            self.hass.states.async_set(
+                f"{DOMAIN}.{item_id}",
+                "scheduled",
+                state_data
+            )
+
+            # Schedule new trigger
+            delay = (item["scheduled_time"] - now).total_seconds()
+            self.hass.loop.call_later(
+                delay,
+                lambda: self.hass.async_create_task(
+                    self._trigger_item(item_id)
+                )
+            )
+
+            _LOGGER.info(
+                "Successfully rescheduled %s %s for %s",
+                "alarm" if is_alarm else "reminder",
+                item_id,
+                item["scheduled_time"].strftime("%Y-%m-%d %H:%M:%S")
+            )
+
+        except Exception as err:
+            _LOGGER.error("Error rescheduling item %s: %s", item_id, err, exc_info=True)

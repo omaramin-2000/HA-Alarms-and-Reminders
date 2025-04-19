@@ -62,6 +62,9 @@ REPEAT_OPTIONS = [
     "custom"
 ]
 
+SERVICE_RESCHEDULE_ALARM = "reschedule_alarm"
+SERVICE_RESCHEDULE_REMINDER = "reschedule_reminder"
+
 async def _get_satellites(hass: HomeAssistant) -> list:
     """Get list of configured assist satellites."""
     try:
@@ -616,6 +619,75 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 vol.Optional("minutes", default=DEFAULT_SNOOZE_MINUTES): vol.All(
                     vol.Coerce(int), vol.Range(min=1, max=60)
                 ),
+            })
+        )
+
+        async def async_reschedule_alarm(call: ServiceCall) -> None:
+            """Handle reschedule alarm service call."""
+            try:
+                alarm_id = call.data.get("alarm_id")
+                changes = {k: v for k, v in call.data.items() if k != "alarm_id"}
+                
+                coordinator = None
+                for entry_id, data in hass.data[DOMAIN].items():
+                    if isinstance(data, dict) and "coordinator" in data:
+                        coordinator = data["coordinator"]
+                        break
+                
+                if coordinator:
+                    await coordinator.reschedule_item(alarm_id, changes, is_alarm=True)
+                else:
+                    _LOGGER.error("No coordinator found")
+                    
+            except Exception as err:
+                _LOGGER.error("Error rescheduling alarm: %s", err, exc_info=True)
+
+        async def async_reschedule_reminder(call: ServiceCall) -> None:
+            """Handle reschedule reminder service call."""
+            try:
+                reminder_id = call.data.get("reminder_id")
+                changes = {k: v for k, v in call.data.items() if k != "reminder_id"}
+                
+                coordinator = None
+                for entry_id, data in hass.data[DOMAIN].items():
+                    if isinstance(data, dict) and "coordinator" in data:
+                        coordinator = data["coordinator"]
+                        break
+                
+                if coordinator:
+                    await coordinator.reschedule_item(reminder_id, changes, is_alarm=False)
+                else:
+                    _LOGGER.error("No coordinator found")
+                    
+            except Exception as err:
+                _LOGGER.error("Error rescheduling reminder: %s", err, exc_info=True)
+
+        # Register new services
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_RESCHEDULE_ALARM,
+            async_reschedule_alarm,
+            schema=vol.Schema({
+                vol.Required("alarm_id"): cv.entity_id,
+                vol.Optional("time"): cv.time,
+                vol.Optional("date"): cv.date,
+                vol.Optional("message"): cv.string,
+                vol.Optional("satellite"): cv.entity_id,
+                vol.Optional("media_player"): cv.entity_id,
+            })
+        )
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_RESCHEDULE_REMINDER,
+            async_reschedule_reminder,
+            schema=vol.Schema({
+                vol.Required("reminder_id"): cv.entity_id,
+                vol.Optional("time"): cv.time,
+                vol.Optional("date"): cv.date,
+                vol.Optional("message"): cv.string,
+                vol.Optional("satellite"): cv.entity_id,
+                vol.Optional("media_player"): cv.entity_id,
             })
         )
 
