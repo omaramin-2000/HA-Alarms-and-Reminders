@@ -745,10 +745,19 @@ class AlarmAndReminderCoordinator:
             # Remove domain prefix if present
             if item_id.startswith(f"{DOMAIN}."):
                 item_id = item_id.split(".")[-1]
-                
+            
+            _LOGGER.debug("Attempting to reschedule item %s with changes: %s", item_id, changes)
+            _LOGGER.debug("Current active items: %s", self._active_items)
+            
             if item_id not in self._active_items:
-                _LOGGER.error("Item %s not found", item_id)
-                return
+                # Try to find item in storage
+                stored_items = await self.storage.async_load()
+                if item_id in stored_items:
+                    self._active_items[item_id] = stored_items[item_id]
+                    _LOGGER.debug("Restored item %s from storage", item_id)
+                else:
+                    _LOGGER.error("Item %s not found in storage or active items", item_id)
+                    return
                 
             item = self._active_items[item_id]
             
@@ -775,7 +784,7 @@ class AlarmAndReminderCoordinator:
                         new_time = new_time + timedelta(days=1)
                 
                 item["scheduled_time"] = new_time
-            
+
             # Update other fields if provided
             for field in ["message", "satellite", "media_player"]:
                 if field in changes:
@@ -785,6 +794,10 @@ class AlarmAndReminderCoordinator:
             item["status"] = "scheduled"
             if "last_stopped" in item:
                 item["last_rescheduled_from"] = item["last_stopped"]
+            
+            # Create stop event if needed
+            if item_id not in self._stop_events:
+                self._stop_events[item_id] = asyncio.Event()
             
             # Save changes
             self._active_items[item_id] = item
@@ -799,12 +812,13 @@ class AlarmAndReminderCoordinator:
                 state_data
             )
 
-            # Schedule new trigger
+            # Schedule new trigger with task name
             delay = (item["scheduled_time"] - now).total_seconds()
             self.hass.loop.call_later(
                 delay,
                 lambda: self.hass.async_create_task(
-                    self._trigger_item(item_id)
+                    self._trigger_item(item_id),
+                    name=f"trigger_{item_id}"
                 )
             )
 
