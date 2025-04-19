@@ -369,56 +369,61 @@ class AlarmAndReminderCoordinator:
     async def stop_item(self, item_id: str, is_alarm: bool) -> None:
         """Stop an active or scheduled item."""
         try:
+            # Remove domain prefix if present
+            if item_id.startswith(f"{DOMAIN}."):
+                item_id = item_id.split(".")[-1]
+
             _LOGGER.debug("Stop request for %s. Current active items: %s", 
                          item_id, 
                          {k: {'name': v.get('name'), 'status': v.get('status')} 
                           for k, v in self._active_items.items()})
 
-            # Remove domain prefix if present
-            if item_id.startswith(f"{DOMAIN}."):
-                item_id = item_id.split(".")[-1]
-
-            # Try to find the item
-            found_id = None
+            # Try to find the item in active items or storage
+            item = None
             if item_id in self._active_items:
-                found_id = item_id
+                item = self._active_items[item_id]
             else:
-                # Try by display name
-                display_name = item_id.replace("_", " ")
-                for aid, item in self._active_items.items():
-                    if (item["name"].lower() == display_name.lower() or 
-                        item["entity_id"] == item_id):
-                        found_id = aid
-                        break
+                # Try to find in storage
+                stored_items = await self.storage.async_load()
+                if item_id in stored_items:
+                    item = stored_items[item_id]
+                    self._active_items[item_id] = item
+                    _LOGGER.debug("Restored item %s from storage", item_id)
 
-            if found_id:
-                item = self._active_items[found_id]
-                
+            if item:
                 # Verify item type matches
                 if item["is_alarm"] != is_alarm:
                     _LOGGER.warning(
                         "Attempted to stop %s with wrong service: %s", 
                         "alarm" if item["is_alarm"] else "reminder",
-                        found_id
+                        item_id
                     )
                     return
 
                 # Stop any active playback
-                if found_id in self._stop_events:
-                    self._stop_events[found_id].set()
+                if item_id in self._stop_events:
+                    self._stop_events[item_id].set()
                     await asyncio.sleep(0.1)
-                    self._stop_events.pop(found_id)
-                
-                # Update item status without deleting
+                    self._stop_events.pop(item_id)
+
+                # Cancel any scheduled triggers
+                for task in asyncio.all_tasks():
+                    if task.get_name() == f"trigger_{item_id}":
+                        task.cancel()
+                        _LOGGER.debug("Cancelled scheduled trigger for %s", item_id)
+                        break
+
+                # Update item status
                 item["status"] = "stopped"
                 item["last_stopped"] = dt_util.now().isoformat()
-                
+                self._active_items[item_id] = item
+
                 # Save to storage
                 await self.storage.async_save(self._active_items)
                 
                 # Update entity state
                 self.hass.states.async_set(
-                    f"{DOMAIN}.{found_id}",
+                    f"{DOMAIN}.{item_id}",
                     "stopped",
                     item
                 )
@@ -429,14 +434,12 @@ class AlarmAndReminderCoordinator:
                 _LOGGER.info(
                     "Successfully stopped %s: %s", 
                     "alarm" if is_alarm else "reminder",
-                    found_id
+                    item_id
                 )
             else:
                 _LOGGER.warning(
-                    "Item %s not found in active items: %s", 
-                    item_id, 
-                    [f"{k} ({v.get('name', '')}, {v.get('status', '')})" 
-                     for k, v in self._active_items.items()]
+                    "Item %s not found in active items or storage", 
+                    item_id
                 )
 
         except Exception as err:
