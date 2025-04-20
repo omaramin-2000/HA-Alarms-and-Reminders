@@ -11,7 +11,7 @@
   "config_flow": true,
   "icon": "images/icon.png",
   "iot_class": "local_push",
-  "homeassistant": "2025.4.2",
+  "homeassistant": "2025.4.3",
   "requirements": [
       "python-dateutil",
       "aiofiles"
