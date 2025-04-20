@@ -68,6 +68,14 @@ set_alarm:
             - "fri"
             - "sat"
             - "sun"
+    sound_file:
+      name: Sound File
+      description: Path to custom sound file (default is birds.mp3)
+      required: false
+      example: "/custom_components/alarms_and_reminders/sounds/alarms/birds.mp3"
+      selector:
+        text:
+          multiline: false
 
 set_reminder:
   name: Set Reminder
@@ -139,6 +147,14 @@ set_reminder:
             - "fri"
             - "sat"
             - "sun"
+    sound_file:
+      name: Sound File
+      description: Path to custom sound file (default is ringtone.mp3)
+      required: false
+      example: "/custom_components/alarms_and_reminders/sounds/reminders/ringtone.mp3"
+      selector:
+        text:
+          multiline: false
 
 stop_alarm:
   name: Stop Alarm

@@ -65,6 +65,9 @@ REPEAT_OPTIONS = [
 SERVICE_RESCHEDULE_ALARM = "reschedule_alarm"
 SERVICE_RESCHEDULE_REMINDER = "reschedule_reminder"
 
+DEFAULT_ALARM_SOUND = "/custom_components/alarms_and_reminders/sounds/alarms/birds.mp3"
+DEFAULT_REMINDER_SOUND = "/custom_components/alarms_and_reminders/sounds/reminders/ringtone.mp3"
+
 async def _get_satellites(hass: HomeAssistant) -> list:
     """Get list of configured assist satellites."""
     try:
@@ -123,6 +126,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 cv.ensure_list,
                 [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]
             ),
+            vol.Optional("sound_file", default=DEFAULT_ALARM_SOUND): cv.string,
         })
 
         REMINDER_SERVICE_SCHEMA = vol.Schema({
@@ -137,6 +141,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 cv.ensure_list,
                 [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]
             ),
+            vol.Optional("sound_file", default=DEFAULT_REMINDER_SOUND): cv.string,
         })
 
         # Store coordinator for future access

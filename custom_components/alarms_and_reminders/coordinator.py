@@ -168,6 +168,12 @@ class AlarmAndReminderCoordinator:
             # Create stop event
             self._stop_events[item_name] = asyncio.Event()
             
+            # Get sound file from service call or use default
+            sound_file = call.data.get(
+                "sound_file", 
+                self.media_handler.alarm_sound if is_alarm else self.media_handler.reminder_sound
+            )
+
             # Create item data with all necessary fields
             item_data = {
                 "scheduled_time": scheduled_time,
@@ -180,7 +186,8 @@ class AlarmAndReminderCoordinator:
                 "status": "scheduled",
                 "name": display_name,
                 "entity_id": item_name,
-                "unique_id": item_name
+                "unique_id": item_name,
+                "sound_file": sound_file  
             }
             
             # Store in active items and save to storage
@@ -257,8 +264,11 @@ class AlarmAndReminderCoordinator:
     async def _satellite_playback_loop(self, item: dict, stop_event: asyncio.Event) -> None:
         """Handle satellite playback loop."""
         try:
-            # Get appropriate sound file
-            sound_file = self.media_handler.alarm_sound if item["is_alarm"] else self.media_handler.reminder_sound
+            # Use item's custom sound file or fall back to default
+            sound_file = item.get(
+                "sound_file",
+                self.media_handler.alarm_sound if item["is_alarm"] else self.media_handler.reminder_sound
+            )
             
             # Check if item is still active before starting playback
             item_id = item["entity_id"]
@@ -268,7 +278,7 @@ class AlarmAndReminderCoordinator:
                     message=item["message"],
                     sound_file=sound_file,
                     stop_event=stop_event,
-                    name=item["name"], # Use the generated/provided name
+                    name=item["name"], # Use the genrated/provided name
                     is_alarm=item["is_alarm"]
                 )
             else:
