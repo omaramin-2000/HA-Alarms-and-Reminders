@@ -469,41 +469,35 @@ class AlarmAndReminderCoordinator:
                 )
                 return
 
-            # Step 1: Stop the current ringing alarm/reminder
-            if item_id in self._stop_events:
-                _LOGGER.debug("Stopping current playback for %s", item_id)
-                self._stop_events[item_id].set()
-                await asyncio.sleep(0.1)  # Give time for playback to stop
-                self._stop_events.pop(item_id)
-                await asyncio.sleep(0.5)  # Additional wait to ensure full stop
+            # Step 1: Stop the item using stop_item method
+            await self.stop_item(item_id, is_alarm)
+            
+            # Wait for stop to complete and verify status
+            await asyncio.sleep(1)  # Give time for stop to complete
+            
+            # Verify item is stopped
+            if item_id in self._active_items and self._active_items[item_id]["status"] != "stopped":
+                _LOGGER.error("Failed to stop item %s before snoozing", item_id)
+                return
 
-            # Calculate new time: round to start of next minute
+            # Step 2: Calculate new time rounded to start of next minute
             now = dt_util.now()
             new_time = now + timedelta(minutes=minutes)
-            # Reset seconds to ensure it starts at the beginning of the minute
             new_time = new_time.replace(second=0, microsecond=0)
             
-            # Step 2: Reschedule with new time
-            changes = {
-                "time": new_time.time(),
-                "date": new_time.date(),
-                "message": item.get("message", ""),
-                "satellite": item.get("satellite"),
-                "media_player": item.get("media_player"),
-            }
-            
-            # Update item data
+            # Step 3: Update item data for rescheduling
+            item = self._active_items[item_id]  # Get fresh item data
             item["scheduled_time"] = new_time
             item["status"] = "scheduled"
             if "last_stopped" in item:
                 item["last_rescheduled_from"] = item["last_stopped"]
             item["last_stopped"] = now.isoformat()
             
-            # Save to storage
+            # Step 4: Save to storage
             self._active_items[item_id] = item
             await self.storage.async_save(self._active_items)
             
-            # Update entity state
+            # Step 5: Update entity state
             state_data = dict(item)
             state_data["scheduled_time"] = item["scheduled_time"].isoformat()
             self.hass.states.async_set(
@@ -512,7 +506,7 @@ class AlarmAndReminderCoordinator:
                 state_data
             )
 
-            # Schedule new trigger
+            # Step 6: Schedule new trigger
             delay = (new_time - now).total_seconds()
             self.hass.loop.call_later(
                 delay,
