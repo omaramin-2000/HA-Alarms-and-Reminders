@@ -446,7 +446,7 @@ class AlarmAndReminderCoordinator:
             _LOGGER.error("Error stopping item %s: %s", item_id, err, exc_info=True)
 
     async def snooze_item(self, item_id: str, minutes: int, is_alarm: bool) -> None:
-        """Snooze an active item."""
+        """Snooze an active item by stopping and rescheduling it."""
         try:
             # Remove domain prefix if present
             if item_id.startswith(f"{DOMAIN}."):
@@ -469,27 +469,38 @@ class AlarmAndReminderCoordinator:
                 )
                 return
 
-            # First stop the current announcement
+            # Step 1: Stop the current ringing alarm/reminder
             if item_id in self._stop_events:
                 _LOGGER.debug("Stopping current playback for %s", item_id)
-                stop_event = self._stop_events[item_id]
-                stop_event.set()  # Signal stop
+                self._stop_events[item_id].set()
                 await asyncio.sleep(0.1)  # Give time for playback to stop
-                self._stop_events.pop(item_id)  # Remove the stop event
-                
-                # Wait a bit more to ensure announcement fully stops
-                await asyncio.sleep(0.5)
+                self._stop_events.pop(item_id)
+                await asyncio.sleep(0.5)  # Additional wait to ensure full stop
 
-            # Calculate new time
+            # Calculate new time: round to start of next minute
             now = dt_util.now()
             new_time = now + timedelta(minutes=minutes)
+            # Reset seconds to ensure it starts at the beginning of the minute
+            new_time = new_time.replace(second=0, microsecond=0)
+            
+            # Step 2: Reschedule with new time
+            changes = {
+                "time": new_time.time(),
+                "date": new_time.date(),
+                "message": item.get("message", ""),
+                "satellite": item.get("satellite"),
+                "media_player": item.get("media_player"),
+            }
             
             # Update item data
             item["scheduled_time"] = new_time
             item["status"] = "scheduled"
-            self._active_items[item_id] = item
+            if "last_stopped" in item:
+                item["last_rescheduled_from"] = item["last_stopped"]
+            item["last_stopped"] = now.isoformat()
             
-            # Save to storage first
+            # Save to storage
+            self._active_items[item_id] = item
             await self.storage.async_save(self._active_items)
             
             # Update entity state
