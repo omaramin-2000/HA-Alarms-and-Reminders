@@ -76,7 +76,11 @@ Basic Controls:
 - `alarms_and_reminders.snooze_alarm` - Snooze a specific alarm
 - `alarms_and_reminders.stop_reminder` - Stop a specific reminder
 - `alarms_and_reminders.snooze_reminder` - Snooze a specific reminder
-
+- `alarms_and_reminders.reschedule_alarm` - reschedule a specific alarm
+- `alarms_and_reminders.reschedule_reminder` - reschedule a specific reminder
+- `alarms_and_reminders.edit_alarm` - edit a specific alarm
+- `alarms_and_reminders.edit_reminder` - edit a specific reminder
+  
 Global Controls:
 - `alarms_and_reminders.stop_all_alarms` - Stop all active alarms
 - `alarms_and_reminders.stop_all_reminders` - Stop all active reminders
@@ -85,12 +89,14 @@ Global Controls:
 ### Sensors
 
 The integration provides two sensors:
+- `sensor.scheduled_alarms` - Shows count and details of active alarms
+- `sensor.scheduled_reminders` - Shows count and details of active reminders
 - `sensor.active_alarms` - Shows count and details of active alarms
 - `sensor.active_reminders` - Shows count and details of active reminders
 
 Each sensor includes:
-- Count of active items
-- List of active items with details
+- Count of scheduled and active items
+- List of scheduled and active items with details
 - Stop all button for quick control
 
 ## Support
