@@ -1,4 +1,4 @@
-"""Test setup of the Alarms and Reminders integration."""
+"""Tests for the Alarms and Reminders integration."""
 from unittest.mock import patch, MagicMock
 import pytest
 from homeassistant.core import HomeAssistant
