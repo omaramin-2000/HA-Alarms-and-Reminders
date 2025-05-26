@@ -9,11 +9,12 @@ pytest_plugins = "pytest_homeassistant_custom_component"
 @pytest.fixture(autouse=True)
 async def auto_enable_custom_integrations(hass):
     """Enable custom integrations in Home Assistant."""
-    # Register your component's domain in hass.data
+    # Register component path
     hass.data["custom_components"] = {
         "alarms_and_reminders": {
             "name": "Alarms and Reminders",
             "domain": "alarms_and_reminders",
+            "integration_type": "hub",
         }
     }
 
