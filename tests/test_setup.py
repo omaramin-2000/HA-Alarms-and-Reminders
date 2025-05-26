@@ -10,16 +10,20 @@ from custom_components.alarms_and_reminders.const import DOMAIN
 async def test_async_setup(hass: HomeAssistant) -> None:
     """Test the integration setup."""
     coordinator_mock = MagicMock()
+    storage_mock = MagicMock()
     
     with patch(
         "custom_components.alarms_and_reminders.coordinator.AlarmAndReminderCoordinator",
         return_value=coordinator_mock
     ), patch(
-        "custom_components.alarms_and_reminders.storage.AlarmReminderStorage"
+        "custom_components.alarms_and_reminders.storage.AlarmReminderStorage",
+        return_value=storage_mock
     ):
         # Configure minimal config
         config = {
-            DOMAIN: {}
+            DOMAIN: {
+                # Add any required config options here
+            }
         }
         
         # Test the setup
