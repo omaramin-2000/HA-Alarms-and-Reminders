@@ -26,6 +26,9 @@ async def test_async_setup_entry(hass: HomeAssistant) -> None:
     ), patch(
         "custom_components.alarms_and_reminders.storage.AlarmReminderStorage",
         return_value=storage_mock
+    ), patch(
+        "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
+        new=AsyncMock(return_value=None)
     ):
         entry = MockConfigEntry(domain=DOMAIN, data={})
         entry.add_to_hass(hass)
