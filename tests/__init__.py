@@ -2,16 +2,13 @@
 from unittest.mock import patch
 import pytest
 
-from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
-
 from custom_components.alarms_and_reminders.const import DOMAIN
 
 @pytest.mark.asyncio
-async def test_async_setup(hass: HomeAssistant) -> None:
+async def test_async_setup(hass):
     """Test the integration setup."""
-    # Mock the coordinator to prevent actual initialization
-    with patch("custom_components.alarms_and_reminders.AlarmAndReminderCoordinator"):
+    with patch("custom_components.alarms_and_reminders.coordinator.AlarmAndReminderCoordinator"):
         # Configure minimal config
         config = {
             DOMAIN: {}
