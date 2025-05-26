@@ -55,3 +55,30 @@ async def test_async_setup(hass: HomeAssistant) -> None:
         assert services is not None
         assert "set_alarm" in services
         assert "set_reminder" in services
+
+@pytest.mark.asyncio
+async def test_async_setup_entry(hass: HomeAssistant) -> None:
+    """Test the config entry setup."""
+    coordinator_mock = MagicMock()
+    coordinator_mock.start = AsyncMock()
+    storage_mock = MagicMock()
+
+    with patch(
+        "custom_components.alarms_and_reminders.coordinator.AlarmAndReminderCoordinator",
+        return_value=coordinator_mock
+    ), patch(
+        "custom_components.alarms_and_reminders.storage.AlarmReminderStorage",
+        return_value=storage_mock
+    ):
+        entry = MagicMock()
+        entry.domain = DOMAIN
+        entry.data = {}
+
+        # Import here to avoid circular import issues
+        from custom_components.alarms_and_reminders import async_setup_entry
+
+        assert await async_setup_entry(hass, entry)
+        assert DOMAIN in hass.data
+        assert "coordinator" in hass.data[DOMAIN]
+        assert "storage" in hass.data[DOMAIN]
+        coordinator_mock.start.assert_called_once()
