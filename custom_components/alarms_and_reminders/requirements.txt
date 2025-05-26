@@ -1,1 +1,3 @@
 voluptuous>=0.13.1
+pytest
+pytest-homeassistant-custom-component
