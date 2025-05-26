@@ -23,3 +23,8 @@ async def auto_enable_custom_integrations(hass):
 
     await hass.async_start()
     yield
+
+
+async def async_setup(hass, config):
+    hass.data[DOMAIN] = {}
+    return True
