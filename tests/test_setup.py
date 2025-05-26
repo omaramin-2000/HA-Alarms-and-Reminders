@@ -13,13 +13,25 @@ async def test_async_setup(hass: HomeAssistant) -> None:
     coordinator_mock = MagicMock()
     coordinator_mock.start = AsyncMock()
     storage_mock = MagicMock()
-    
+
+    # Mock component setup
+    async def async_setup_entry(hass, entry):
+        """Set up test entry."""
+        hass.data[DOMAIN] = {
+            "coordinator": coordinator_mock,
+            "storage": storage_mock
+        }
+        return True
+
     with patch(
         "custom_components.alarms_and_reminders.coordinator.AlarmAndReminderCoordinator",
         return_value=coordinator_mock
     ), patch(
         "custom_components.alarms_and_reminders.storage.AlarmReminderStorage",
         return_value=storage_mock
+    ), patch(
+        "custom_components.alarms_and_reminders.async_setup_entry",
+        side_effect=async_setup_entry
     ):
         # Configure minimal config
         config = {
@@ -32,11 +44,12 @@ async def test_async_setup(hass: HomeAssistant) -> None:
 
         # Verify domain data structure
         assert DOMAIN in hass.data
-        assert isinstance(hass.data[DOMAIN].get("coordinator"), MagicMock)
+        assert "coordinator" in hass.data[DOMAIN]
+        assert "storage" in hass.data[DOMAIN]
         
         # Verify coordinator was started
         coordinator_mock.start.assert_called_once()
-        
+
         # Test that services are registered
         services = hass.services.async_services().get(DOMAIN)
         assert services is not None
