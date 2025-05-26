@@ -1,12 +1,13 @@
 """Test setup of the Alarms and Reminders integration."""
 
 import pytest
+from homeassistant.setup import async_setup_component
 
 @pytest.mark.asyncio
-async def test_async_setup_entry(hass):
-    """Test async_setup_entry creates necessary data."""
-    # This is a placeholder; you can expand it based on your integration's setup
-    result = await hass.config_entries.async_forward_entry_setup(
-        None, "sensor"
-    )
-    assert result is None or result is True
+async def test_async_setup(hass):
+    """Test the integration setup."""
+    # Attempt to set up your integration
+    assert await async_setup_component(hass, "alarms_and_reminders", {}) is True
+
+    # After setup, your domain should be in hass.data
+    assert "alarms_and_reminders" in hass.data
