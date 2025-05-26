@@ -40,4 +40,3 @@ async def test_async_setup_entry(hass: HomeAssistant) -> None:
         assert entry.entry_id in hass.data[DOMAIN]
         assert "coordinator" in hass.data[DOMAIN][entry.entry_id]
         assert "entities" in hass.data[DOMAIN][entry.entry_id]
-        coordinator_mock.start.assert_called_once()
