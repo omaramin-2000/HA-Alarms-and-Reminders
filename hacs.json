@@ -5,6 +5,6 @@
   "render_release_notes": true,
   "domains": ["alarms_and_reminders"],
   "icon": "images/icon.png",
-  "homeassistant": "2025.4.3",
+  "homeassistant": "2025.5.3",
   "persistent_directory": "custom_components"
 }
