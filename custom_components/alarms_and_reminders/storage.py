@@ -47,6 +47,12 @@ class AlarmReminderStorage:
                     async with aiofiles.open(self.alarms_file, 'r') as f:
                         content = await f.read()
                         alarms_data = json.loads(content)
+                        
+                        # Ensure all status categories exist
+                        for status in ["active", "scheduled", "stopped"]:
+                            if status not in alarms_data:
+                                alarms_data[status] = {}
+                        
                         self._items["alarms"] = alarms_data
                         # Flatten active items for coordinator
                         for status in ["active", "scheduled", "stopped"]:
@@ -57,6 +63,12 @@ class AlarmReminderStorage:
                     async with aiofiles.open(self.reminders_file, 'r') as f:
                         content = await f.read()
                         reminders_data = json.loads(content)
+                        
+                        # Ensure all status categories exist
+                        for status in ["active", "scheduled", "stopped"]:
+                            if status not in reminders_data:
+                                reminders_data[status] = {}
+                        
                         self._items["reminders"] = reminders_data
                         # Flatten active items for coordinator
                         for status in ["active", "scheduled", "stopped"]:
