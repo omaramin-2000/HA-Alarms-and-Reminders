@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Any
 import asyncio
 from datetime import datetime, timedelta
+import re
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.util import dt as dt_util
@@ -78,59 +79,89 @@ class AlarmAndReminderCoordinator:
             if "entities" not in self.hass.data[DOMAIN][config_entry.entry_id]:
                 self.hass.data[DOMAIN][config_entry.entry_id]["entities"] = []
 
+        # Add these new methods
+        self._used_alarm_ids = set()  # Track used alarm IDs
+        self._used_reminder_ids = set()  # Track used reminder IDs
+
+    def _get_next_available_id(self, prefix: str) -> str:
+        """Get next available ID for alarms."""
+        counter = 1
+        while True:
+            potential_id = f"{prefix}_{counter}"
+            if potential_id not in self._active_items:
+                return potential_id
+            counter += 1
+
     async def async_load_items(self) -> None:
-        """Load items from storage."""
-        self._active_items = await self.storage.async_load()
-        _LOGGER.debug("Loaded items from storage: %s", self._active_items)
-        
-        # Recreate stop events for active items
-        for item_id, item in self._active_items.items():
-            if item["status"] == "active":
-                self._stop_events[item_id] = asyncio.Event()
-        
-        # Schedule active items
-        now = dt_util.now()
-        for item_id, item in self._active_items.items():
-            if item["status"] == "scheduled":
-                delay = (item["scheduled_time"] - now).total_seconds()
-                if delay > 0:
-                    self.hass.loop.call_later(
-                        delay,
-                        lambda: self.hass.async_create_task(
-                            self._trigger_item(item_id)
+        """Load items from storage and update used IDs."""
+        try:
+            self._active_items = await self.storage.async_load()
+            
+            # Update used IDs from loaded items
+            self._used_alarm_ids.clear()
+            self._used_reminder_ids.clear()
+            
+            for item_id, item in self._active_items.items():
+                if item.get("is_alarm"):
+                    self._used_alarm_ids.add(item_id)
+                else:
+                    self._used_reminder_ids.add(item_id)
+            
+            _LOGGER.debug("Loaded items from storage: %s", self._active_items)
+            
+            # Recreate stop events for active items
+            for item_id, item in self._active_items.items():
+                if item["status"] == "active":
+                    self._stop_events[item_id] = asyncio.Event()
+            
+            # Schedule active items
+            now = dt_util.now()
+            for item_id, item in self._active_items.items():
+                if item["status"] == "scheduled":
+                    delay = (item["scheduled_time"] - now).total_seconds()
+                    if delay > 0:
+                        self.hass.loop.call_later(
+                            delay,
+                            lambda: self.hass.async_create_task(
+                                self._trigger_item(item_id)
+                            )
                         )
-                    )
+        except Exception as err:
+            _LOGGER.error("Error loading items: %s", err, exc_info=True)
 
     async def schedule_item(self, call: ServiceCall, is_alarm: bool, target: dict) -> None:
         """Schedule an alarm or reminder."""
         try:
-            _LOGGER.debug("Scheduling %s with data: %s", "alarm" if is_alarm else "reminder", call.data)
+            _LOGGER.debug("Scheduling %s with data: %s", 
+                         "alarm" if is_alarm else "reminder", 
+                         call.data)
             
-            # Handle item naming with proper string handling
-            provided_name = call.data.get("name", "").strip()  # Add strip() to clean up whitespace
+            # Handle item naming with proper ID generation
+            provided_name = call.data.get("name", "").strip()
             
             if is_alarm:
-                if provided_name:
-                    display_name = provided_name
-                    # Create entity_id by replacing spaces with underscores
-                    entity_id = provided_name.replace(" ", "_").lower()
-                    # Ensure unique entity_id by appending number if needed
-                    base_id = entity_id
-                    counter = 1
-                    while f"{entity_id}" in self._active_items:
-                        entity_id = f"{base_id}_{counter}"
-                        counter += 1
-                    item_name = entity_id
-                else:
-                    # Auto-generate alarm name
-                    self._alarm_counter += 1
-                    item_name = f"alarm_{self._alarm_counter}"
+                # For alarms: generate ID if no name provided
+                if not provided_name:
+                    item_name = self._get_next_available_id("alarm")
                     display_name = item_name
+                else:
+                    # Use provided name but ensure unique ID
+                    safe_name = re.sub(r'[^a-z0-9_]', '_', provided_name.lower())
+                    item_name = self._get_next_available_id(safe_name)
+                    display_name = provided_name
             else:
-                # For reminders, name is required by schema
+                # For reminders: name is required
+                if not provided_name:
+                    _LOGGER.error("Name is required for reminders")
+                    return
+                # Use provided name directly for reminders
+                safe_name = re.sub(r'[^a-z0-9_]', '_', provided_name.lower())
+                item_name = safe_name
                 display_name = provided_name
-                # Create entity_id by replacing spaces with underscores
-                item_name = provided_name.replace(" ", "_").lower()
+                # Check if reminder name already exists
+                if item_name in self._active_items:
+                    _LOGGER.error("A reminder with name '%s' already exists", provided_name)
+                    return
 
             time_input = call.data.get("time")
             date_input = call.data.get("date")
