@@ -282,7 +282,8 @@ class AlarmAndReminderCoordinator:
             self._stop_events[item_id] = stop_event
 
             # Send notification if configured
-            await self._send_notification(item_id, item)
+            if "notify_device" in item and item["notify_device"]:
+                await self._send_notification(item_id, item)
 
             # Start playback based on target type
             if item["satellite"]:
@@ -298,50 +299,66 @@ class AlarmAndReminderCoordinator:
     async def _send_notification(self, item_id: str, item: dict) -> None:
         """Send notification with action buttons."""
         try:
-            if not item.get("notify_device"):
+            device_id = item.get("notify_device")
+            if not device_id:
                 return
 
-            devices = item["notify_device"]
-            if isinstance(devices, str):
-                devices = [devices]
+            # Add 'notify.' prefix if not present
+            if not device_id.startswith("notify."):
+                device_id = f"notify.{device_id}"
 
-            for device in devices:
-                service_data = {
-                    "message": item.get("message", ""),
-                    "title": f"{item['name']} - {datetime.now().strftime('%H:%M')}",
-                    "data": {
-                        "tag": item_id,
-                        "group": "alarms_and_reminders",
-                        "color": "#ff9800",
-                        "sticky": "true",
-                        "notification_icon": "mdi:alarm-bell" if item["is_alarm"] else "mdi:reminder",
-                        "actions": [
-                            {
-                                "action": "STOP",
-                                "title": "Stop",
-                                "icon": "mdi:stop"
-                            },
-                            {
-                                "action": "SNOOZE",
-                                "title": "Snooze",
-                                "icon": "mdi:snooze"
-                            }
-                        ],
-                        "sound": item.get("sound_file", "default"),
+            notification_data = {
+                "message": item.get("message", f"It's {dt_util.now().strftime('%I:%M %p')}"),
+                "title": f"{item['name']} - {item['status'].title()}",
+                "data": {
+                    "tag": item_id,
+                    "group": "alarms_and_reminders",
+                    "color": "#ff9800",
+                    "sticky": "true",
+                    "notification_icon": "mdi:alarm-bell" if item["is_alarm"] else "mdi:reminder",
+                    "actions": [
+                        {
+                            "action": "stop",
+                            "title": "Stop",
+                            "icon": "mdi:stop"
+                        },
+                        {
+                            "action": "snooze",
+                            "title": "Snooze",
+                            "icon": "mdi:snooze"
+                        }
+                    ],
+                    "android": {
+                        "channel": "alarms_and_reminders",
+                        "priority": "high",
+                        "vibrationPattern": [200, 100, 200]
                     }
                 }
+            }
 
-                await self.hass.services.async_call(
-                    "notify",
-                    device,
-                    service_data
-                )
+            await self.hass.services.async_call(
+                "notify",
+                device_id.replace("notify.", ""),
+                notification_data,
+                blocking=True
+            )
 
-                # Register callback for handling notification actions
-                self.hass.bus.async_listen(
-                    f"mobile_app_notification_action",
-                    lambda event: self._handle_notification_action(event, item_id, item)
-                )
+            # Register to handle notification actions
+            @callback
+            def handle_action(event):
+                """Handle notification action."""
+                if (
+                    event.data.get("action") in ["stop", "snooze"] and
+                    event.data.get("tag") == item_id
+                ):
+                    action = event.data["action"]
+                    if action == "stop":
+                        self.hass.async_create_task(self.stop_item(item_id, item["is_alarm"]))
+                    elif action == "snooze":
+                        self.hass.async_create_task(self.snooze_item(item_id, 5, item["is_alarm"]))
+
+            # Remove old listeners and add new one
+            self.hass.bus.async_listen_once("mobile_app_notification_action", handle_action)
 
         except Exception as err:
             _LOGGER.error("Error sending notification: %s", err)
