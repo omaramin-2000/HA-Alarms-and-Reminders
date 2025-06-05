@@ -78,15 +78,13 @@ set_alarm:
           multiline: false
     notify_device:
       name: Notify Device
-      description: Mobile app device to notify (e.g., mobile_app_phone)
+      description: Mobile app device to notify when alarm/reminder triggers
       required: false
-      example: "mobile_app_pixel_6"
       selector:
-        select:
-          options:
-            - "notify.mobile_app"  # Default mobile notify service
-          custom_value: true       # Allow custom input
-          multiple: true          # Allow multiple devices
+        target:
+          entity:
+            integration: mobile_app
+            domain: notify
 
 set_reminder:
   name: Set Reminder
@@ -168,15 +166,13 @@ set_reminder:
           multiline: false
     notify_device:
       name: Notify Device
-      description: Mobile app device to notify (e.g., mobile_app_phone)
+      description: Mobile app device to notify when alarm/reminder triggers
       required: false
-      example: "mobile_app_pixel_6"
       selector:
-        select:
-          options:
-            - "notify.mobile_app"  # Default mobile notify service
-          custom_value: true       # Allow custom input
-          multiple: true          # Allow multiple devices
+        target:
+          entity:
+            integration: mobile_app
+            domain: notify
 
 stop_alarm:
   name: Stop Alarm
