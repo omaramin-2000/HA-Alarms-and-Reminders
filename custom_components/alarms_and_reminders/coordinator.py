@@ -281,7 +281,10 @@ class AlarmAndReminderCoordinator:
             stop_event = asyncio.Event()
             self._stop_events[item_id] = stop_event
 
-            # Start playback loop based on target type
+            # Send notification if configured
+            await self._send_notification(item_id, item)
+
+            # Start playback based on target type
             if item["satellite"]:
                 await self._satellite_playback_loop(item, stop_event)
             elif item["media_players"]:
@@ -291,6 +294,72 @@ class AlarmAndReminderCoordinator:
             _LOGGER.error("Error triggering item %s: %s", item_id, err)
             item["status"] = "error"
             self.hass.states.async_set(f"{DOMAIN}.{item_id}", "error", item)
+
+    async def _send_notification(self, item_id: str, item: dict) -> None:
+        """Send notification with action buttons."""
+        try:
+            if not item.get("notify_device"):
+                return
+
+            devices = item["notify_device"]
+            if isinstance(devices, str):
+                devices = [devices]
+
+            for device in devices:
+                service_data = {
+                    "message": item.get("message", ""),
+                    "title": f"{item['name']} - {datetime.now().strftime('%H:%M')}",
+                    "data": {
+                        "tag": item_id,
+                        "group": "alarms_and_reminders",
+                        "color": "#ff9800",
+                        "sticky": "true",
+                        "notification_icon": "mdi:alarm-bell" if item["is_alarm"] else "mdi:reminder",
+                        "actions": [
+                            {
+                                "action": "STOP",
+                                "title": "Stop",
+                                "icon": "mdi:stop"
+                            },
+                            {
+                                "action": "SNOOZE",
+                                "title": "Snooze",
+                                "icon": "mdi:snooze"
+                            }
+                        ],
+                        "sound": item.get("sound_file", "default"),
+                    }
+                }
+
+                await self.hass.services.async_call(
+                    "notify",
+                    device,
+                    service_data
+                )
+
+                # Register callback for handling notification actions
+                self.hass.bus.async_listen(
+                    f"mobile_app_notification_action",
+                    lambda event: self._handle_notification_action(event, item_id, item)
+                )
+
+        except Exception as err:
+            _LOGGER.error("Error sending notification: %s", err)
+
+    async def _handle_notification_action(self, event, item_id: str, item: dict) -> None:
+        """Handle notification action button presses."""
+        try:
+            if event.data.get("tag") != item_id:
+                return
+
+            action = event.data.get("action")
+            if action == "STOP":
+                await self.stop_item(item_id, item["is_alarm"])
+            elif action == "SNOOZE":
+                await self.snooze_item(item_id, 5, item["is_alarm"])
+
+        except Exception as err:
+            _LOGGER.error("Error handling notification action: %s", err)
 
     async def _satellite_playback_loop(self, item: dict, stop_event: asyncio.Event) -> None:
         """Handle satellite playback loop."""

@@ -31,6 +31,7 @@ ATTR_SNOOZE_MINUTES = "minutes"
 ATTR_REMINDER_ID = "reminder_id"  
 ATTR_MEDIA_PLAYER = "media_player"
 ATTR_NAME = "name"             # Attribute name
+ATTR_NOTIFY_DEVICE = "notify_device"
 
 # Configuration
 CONF_ALARM_SOUND = "alarm_sound"
@@ -45,3 +46,4 @@ DEFAULT_ALARM_SOUND = "/custom_components/alarms_and_reminders/sounds/alarms/bir
 DEFAULT_REMINDER_SOUND = "/custom_components/alarms_and_reminders/sounds/reminders/ringtone.mp3"
 DEFAULT_MEDIA_PLAYER = None
 DEFAULT_SNOOZE_MINUTES = 5 # Default snooze time in minutes
+DEFAULT_NOTIFICATION_TITLE = "Alarm & Reminder"

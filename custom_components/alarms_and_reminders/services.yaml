@@ -76,6 +76,16 @@ set_alarm:
       selector:
         text:
           multiline: false
+    notify_device:
+      name: Notify Device
+      description: Mobile app device to notify (e.g., mobile_app_phone)
+      required: false
+      example: "mobile_app_pixel_6"
+      selector:
+        target:
+          entity:
+            domain: notify
+            integration: mobile_app
 
 set_reminder:
   name: Set Reminder
@@ -155,6 +165,16 @@ set_reminder:
       selector:
         text:
           multiline: false
+    notify_device:
+      name: Notify Device
+      description: Mobile app device to notify (e.g., mobile_app_phone)
+      required: false
+      example: "mobile_app_pixel_6"
+      selector:
+        target:
+          entity:
+            domain: notify
+            integration: mobile_app
 
 stop_alarm:
   name: Stop Alarm

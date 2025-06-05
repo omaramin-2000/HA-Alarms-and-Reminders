@@ -127,6 +127,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]
             ),
             vol.Optional("sound_file", default=DEFAULT_ALARM_SOUND): cv.string,
+            vol.Optional(ATTR_NOTIFY_DEVICE): vol.Any(cv.string, vol.All(cv.ensure_list, [cv.string])),
         })
 
         REMINDER_SERVICE_SCHEMA = vol.Schema({
@@ -142,6 +143,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]
             ),
             vol.Optional("sound_file", default=DEFAULT_REMINDER_SOUND): cv.string,
+            vol.Optional(ATTR_NOTIFY_DEVICE): vol.Any(cv.string, vol.All(cv.ensure_list, [cv.string])),
         })
 
         # Store coordinator for future access
