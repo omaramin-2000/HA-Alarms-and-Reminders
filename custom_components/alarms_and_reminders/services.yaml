@@ -78,13 +78,14 @@ set_alarm:
           multiline: false
     notify_device:
       name: Notify Device
-      description: Mobile app device to notify when alarm/reminder triggers
+      description: >-
+        Mobile app notification service (e.g., notify.mobile_app_pixel6). 
+        You can find your device ID in Mobile App integration notification services.
       required: false
+      example: "notify.mobile_app_sm_a528b"
       selector:
-        target:
-          entity:
-            integration: mobile_app
-            domain: notify
+        text:
+          multiline: false
 
 set_reminder:
   name: Set Reminder
@@ -166,13 +167,14 @@ set_reminder:
           multiline: false
     notify_device:
       name: Notify Device
-      description: Mobile app device to notify when alarm/reminder triggers
+      description: >-
+        Mobile app notification service (e.g., notify.mobile_app_pixel6). 
+        You can find your device ID in Mobile App integration notification services.
       required: false
+      example: "notify.mobile_app_sm_a528b"
       selector:
-        target:
-          entity:
-            integration: mobile_app
-            domain: notify
+        text:
+          multiline: false
 
 stop_alarm:
   name: Stop Alarm
