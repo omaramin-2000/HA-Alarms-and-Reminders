@@ -32,6 +32,7 @@ ATTR_REMINDER_ID = "reminder_id"
 ATTR_MEDIA_PLAYER = "media_player"
 ATTR_NAME = "name"             # Attribute name
 ATTR_NOTIFY_DEVICE = "notify_device"
+ATTR_NOTIFY_TITLE = "Alarm & Reminder"
 
 # Configuration
 CONF_ALARM_SOUND = "alarm_sound"
