@@ -79,10 +79,11 @@ set_alarm:
     notify_device:
       name: Notify Device
       description: >-
-        Mobile app notification service (e.g., notify.mobile_app_pixel6). 
+        Mobile app device ID (e.g., mobile_app_sm_a528b). 
         You can find your device ID in Mobile App integration notification services.
+        Do not include 'notify.' prefix.
       required: false
-      example: "notify.mobile_app_sm_a528b"
+      example: "mobile_app_sm_a528b"
       selector:
         text:
           multiline: false
@@ -168,10 +169,11 @@ set_reminder:
     notify_device:
       name: Notify Device
       description: >-
-        Mobile app notification service (e.g., notify.mobile_app_pixel6). 
+        Mobile app device ID (e.g., mobile_app_sm_a528b). 
         You can find your device ID in Mobile App integration notification services.
+        Do not include 'notify.' prefix.
       required: false
-      example: "notify.mobile_app_sm_a528b"
+      example: "mobile_app_sm_a528b"
       selector:
         text:
           multiline: false
