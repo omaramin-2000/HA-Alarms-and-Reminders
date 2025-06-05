@@ -82,10 +82,11 @@ set_alarm:
       required: false
       example: "mobile_app_pixel_6"
       selector:
-        target:
-          entity:
-            domain: notify
-            integration: mobile_app
+        select:
+          options:
+            - "notify.mobile_app"  # Default mobile notify service
+          custom_value: true       # Allow custom input
+          multiple: true          # Allow multiple devices
 
 set_reminder:
   name: Set Reminder
@@ -171,10 +172,11 @@ set_reminder:
       required: false
       example: "mobile_app_pixel_6"
       selector:
-        target:
-          entity:
-            domain: notify
-            integration: mobile_app
+        select:
+          options:
+            - "notify.mobile_app"  # Default mobile notify service
+          custom_value: true       # Allow custom input
+          multiple: true          # Allow multiple devices
 
 stop_alarm:
   name: Stop Alarm
