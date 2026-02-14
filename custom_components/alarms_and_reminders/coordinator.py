@@ -26,7 +26,6 @@ from .const import (
     EVENT_DASHBOARD_UPDATED,
 )
 from .storage import AlarmReminderStorage
-from .announcer import AudioDurationDetector
 
 _LOGGER = logging.getLogger(__name__)
 
