@@ -605,12 +605,13 @@ class AlarmAndReminderCoordinator(DataUpdateCoordinator):
 
     async def stop_item(self, item_id: str) -> None:
         """Stop an active or scheduled item.
-        
+
         For 'once' items: mark as stopped, ready to be re-enabled later.
         For repeated items: reschedule to next occurrence.
         """
         try:
-            if item_id.startswith(f"{DOMAIN}."):
+            # Extract item name from any entity_id format (e.g., "switch.alarm_1", "alarms_and_reminders.alarm_1", or just "alarm_1")
+            if "." in item_id:
                 item_id = item_id.split(".")[-1]
 
             if item_id not in self._active_items:
@@ -659,7 +660,8 @@ class AlarmAndReminderCoordinator(DataUpdateCoordinator):
     async def snooze_item(self, item_id: str, minutes: int) -> None:
         """Snooze an active item."""
         try:
-            if item_id.startswith(f"{DOMAIN}."):
+            # Extract item name from any entity_id format (e.g., "switch.alarm_1", "alarms_and_reminders.alarm_1", or just "alarm_1")
+            if "." in item_id:
                 item_id = item_id.split(".")[-1]
 
             if item_id not in self._active_items:
@@ -741,7 +743,8 @@ class AlarmAndReminderCoordinator(DataUpdateCoordinator):
     async def edit_item(self, item_id: str, changes: dict) -> None:
         """Edit an existing item."""
         try:
-            if item_id.startswith(f"{DOMAIN}."):
+            # Extract item name from any entity_id format (e.g., "switch.alarm_1", "alarms_and_reminders.alarm_1", or just "alarm_1")
+            if "." in item_id:
                 item_id = item_id.split(".")[-1]
 
             if item_id not in self._active_items:
@@ -791,8 +794,8 @@ class AlarmAndReminderCoordinator(DataUpdateCoordinator):
     async def delete_item(self, item_id: str) -> None:
         """Delete a specific item and remove from entity registry."""
         try:
-            # Remove domain prefix if present
-            if item_id.startswith(f"{DOMAIN}."):
+            # Extract item name from any entity_id format (e.g., "switch.alarm_1", "alarms_and_reminders.alarm_1", or just "alarm_1")
+            if "." in item_id:
                 item_id = item_id.split(".")[-1]
 
             if item_id not in self._active_items:
