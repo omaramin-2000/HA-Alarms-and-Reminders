@@ -29,7 +29,7 @@ DEFAULT_SENTENCES = {
             "data": [
                 {
                     "sentences": [
-                        "[den] Wecker schlummern]",
+                        "[den] Wecker schlummern",
                         "schlummern für {minutes} minuten"
                         "noch {minutes} minuten"
                         "(lass|gib) mir noch {minutes} minuten"
