@@ -26,7 +26,6 @@ from .const import (
     EVENT_DASHBOARD_UPDATED,
 )
 from .storage import AlarmReminderStorage
-from .announcer import AudioDurationDetector
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -930,44 +929,86 @@ class AlarmAndReminderCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Failed to update dashboard state: %s", err, exc_info=True)
 
-    def _resolve_sound_file(self, ringtone: str = None, sound_file: str = None, is_alarm: bool = False) -> str:
-        """Resolve sound file path from ringtone name or custom file.
+def _resolve_sound_file(self, ringtone: str = None, sound_file: str = None, is_alarm: bool = False) -> str:
+    """Resolve sound file path from ringtone name or custom file.
+    
+    Returns the full web URL for the audio file.
+    Priority:
+    1. If sound_file is provided and not empty, use it (custom file)
+    2. If ringtone is provided, resolve to built-in URL
+    3. Use default based on alarm/reminder type
+    """
+    # If custom sound file is provided and not empty, use it
+    if sound_file and sound_file.strip():
+        _LOGGER.debug("Using custom sound file: %s", sound_file)
+        normalized_sound_file = self._normalize_sound_path(sound_file)
+        return normalized_sound_file
+    
+    # Get the base URL (e.g., http://localhost:8123)
+    base_url = get_url(self.hass, allow_external=False) or "http://localhost:8123"
+    
+    # Built-in ringtone URLs (relative to /local/)
+    builtin_reminders = {
+        "ringtone": "alarm&reminder_sounds/reminders/ringtone.mp3",
+        "ringtone_2": "alarm&reminder_sounds/reminders/ringtone_2.mp3",
+    }
+    
+    builtin_alarms = {
+        "birds": "alarm&reminder_sounds/alarms/birds.mp3",
+    }
+    
+    # Resolve built-in ringtone
+    builtin_map = builtin_alarms if is_alarm else builtin_reminders
+    if ringtone and ringtone in builtin_map:
+        relative_path = builtin_map[ringtone]
+        full_url = f"{base_url}/local/{relative_path}"
+        _LOGGER.debug("Using built-in %s URL: %s", "alarm" if is_alarm else "reminder", full_url)
+        return full_url
+    
+    # Fall back to default
+    default_relative = builtin_alarms.get("birds") if is_alarm else builtin_reminders.get("ringtone")
+    default_url = f"{base_url}/local/{default_relative}"
+    _LOGGER.debug("Using default sound file URL: %s", default_url)
+    return default_url
+
+def _normalize_sound_path(self, path: str) -> str:
+    """Normalize a sound file path to a full URL accessible by satellites.
+    
+    Handles:
+    - Full HTTP/HTTPS URLs (return as-is)
+    - /local/ paths (convert to full URL)
+    - media-source:// paths (return as-is)
+    - Relative paths (convert to /local/ URL)
+    
+    Args:
+        path: The sound file path to normalize
         
-        Returns the full web URL for the audio file.
-        Priority:
-        1. If sound_file is provided and not empty, use it (custom file)
-        2. If ringtone is provided, resolve to built-in URL
-        3. Use default based on alarm/reminder type
-        """
-        # If custom sound file is provided and not empty, use it
-        if sound_file and sound_file.strip():  # Check if not empty string
-            _LOGGER.debug("Using custom sound file: %s", sound_file)
-            normalized_sound_file = AudioDurationDetector._normalize_path(sound_file)
-            return normalized_sound_file
-        
-        # Get the base URL (e.g., http://localhost:8123)
-        base_url = get_url(self.hass, allow_external=False) or "http://localhost:8123"
-        
-        # Built-in ringtone URLs (relative to /local/)
-        builtin_reminders = {
-            "ringtone": "alarm&reminder_sounds/reminders/ringtone.mp3",
-            "ringtone_2": "alarm&reminder_sounds/reminders/ringtone_2.mp3",
-        }
-        
-        builtin_alarms = {
-            "birds": "alarm&reminder_sounds/alarms/birds.mp3",
-        }
-        
-        # Resolve built-in ringtone
-        builtin_map = builtin_alarms if is_alarm else builtin_reminders
-        if ringtone and ringtone in builtin_map:
-            relative_path = builtin_map[ringtone]
-            full_url = f"{base_url}/local/{relative_path}"
-            _LOGGER.debug("Using built-in %s URL: %s", "alarm" if is_alarm else "reminder", full_url)
-            return full_url
-        
-        # Fall back to default
-        default_relative = builtin_alarms.get("birds") if is_alarm else builtin_reminders.get("ringtone")
-        default_url = f"{base_url}/local/{default_relative}"
-        _LOGGER.debug("Using default sound file URL: %s", default_url)
-        return default_url
+    Returns:
+        Full URL or media-source URI
+    """
+    if not path:
+        return ""
+    
+    path = path.strip()
+    
+    # Already a full URL or media-source
+    if path.startswith(("http://", "https://", "media-source://")):
+        return path
+    
+    # Get base URL
+    base_url = get_url(self.hass, allow_external=False) or "http://localhost:8123"
+    
+    # Handle /local/ paths
+    if path.startswith("/local/"):
+        return f"{base_url}{path}"
+    
+    # Handle www/ paths (convert to /local/)
+    if path.startswith("www/"):
+        return f"{base_url}/local/{path[4:]}"
+    
+    # Handle relative paths (assume they're in www/)
+    if not path.startswith("/"):
+        return f"{base_url}/local/{path}"
+    
+    # Default: treat as absolute path from HA root
+    return f"{base_url}{path}"
